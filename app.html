@@ -98,7 +98,7 @@ select:focus{border-color:#4f8ef7}
 .map-toggle.active{border-color:#4f8ef7;color:#4f8ef7;background:rgba(79,142,247,.1)}
 .map-toggle:hover:not(.active){border-color:#64748b;color:#94a3b8}
 /* seamless preview trigger button */
-#btn-sm-preview{width:100%;padding:7px;margin-bottom:8px;background:transparent;border:1px solid #4f8ef7;color:#4f8ef7;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;transition:.15s;display:none}
+#btn-sm-preview{width:100%;padding:7px;margin-bottom:8px;background:transparent;border:1px solid #4f8ef7;color:#4f8ef7;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;transition:.15s}
 #btn-sm-preview:hover{background:rgba(79,142,247,.1)}
 /* modal action buttons */
 #btn-sm-apply{padding:10px 20px;background:#4f8ef7;color:#fff;border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
@@ -641,9 +641,6 @@ function loadFile(file) {
   setStatus('', '');
   resetPills();
   document.getElementById('progress-wrap').style.display = 'none';
-  // Show preview button if seamless is checked
-  document.getElementById('btn-sm-preview').style.display =
-    document.getElementById('chk-seamless').checked ? '' : 'none';
   const fd = new FormData();
   fd.append('file', file);
   fetch('/upload', { method:'POST', body:fd })
@@ -805,7 +802,6 @@ const chkSeamless = document.getElementById('chk-seamless');
 const seamlessOpts = document.getElementById('seamless-opts');
 chkSeamless.addEventListener('change', () => {
   seamlessOpts.style.display = chkSeamless.checked ? '' : 'none';
-  document.getElementById('btn-sm-preview').style.display = (chkSeamless.checked && thumbObjectURL) ? '' : 'none';
 });
 const blendEl = document.getElementById('blend-ratio');
 const blendVl = document.getElementById('vblend');
