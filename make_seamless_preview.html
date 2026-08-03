@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Make Seamless Interactive Workflow</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --bg-main: #d0d2d6;
+      --bg-panel: #1e1f26;
+      --bg-card: #141519;
+      --accent-purple: #702af8;
+      --accent-purple-hover: #5d1ee0;
+      --accent-blue: #007bff;
+      --accent-blue-hover: #0066d4;
+      --border-color: #2e303a;
+      --text-muted: #9ba0a6;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* Custom Range Styling */
+    input[type=range] {
+      -webkit-appearance: none;
+      background: #2b2c36;
+      height: 6px;
+      border-radius: 3px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      background: var(--accent-purple);
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(112, 42, 248, 0.5);
+    }
+
+    /* Canvas styling */
+    .texture-canvas {
+      image-rendering: pixelated;
+      border-radius: 6px;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* Dynamic overlay handle indicators */
+    .seam-overlay {
+      position: absolute;
+      background-color: rgba(112, 42, 248, 0.45);
+      border: 1px dashed rgba(255, 255, 255, 0.8);
+      pointer-events: none;
+      transition: all 0.15s ease-out;
+    }
+
+    .seam-handle-capsule {
+      position: absolute;
+      background-color: var(--accent-purple);
+      border-radius: 9999px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      transition: all 0.15s ease-out;
+    }
+
+    /* Toast Notification */
+    #toast {
+      transform: translateY(100px);
+      opacity: 0;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    #toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-center p-4 md:p-8">
+
+  <header class="w-full max-w-6xl mb-6 flex flex-wrap justify-between items-center bg-[#1e1f26] p-4 rounded-xl shadow-lg border border-[#2e303a]">
+    <div class="flex items-center space-x-3">
+      <div class="w-8 h-8 rounded-lg bg-[#702af8] flex items-center justify-center font-bold text-white shadow-md">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+      </div>
+      <div>
+        <h1 class="font-bold text-lg text-white">Seamless Texture Generator</h1>
+        <p class="text-xs text-gray-400">Interactive Seam Removal & Texture Synthesis Workflow</p>
+      </div>
+    </div>
+
+    <!-- Texture Pattern Selector -->
+    <div class="flex items-center space-x-3 mt-3 sm:mt-0">
+      <label for="texturePreset" class="text-xs text-gray-300 font-medium">Source Pattern:</label>
+      <select id="texturePreset" class="bg-[#141519] text-xs text-white px-3 py-2 rounded-lg border border-[#33343d] outline-none focus:border-[#702af8]">
+        <option value="wood">Wood Planks (High Contrast Seams)</option>
+        <option value="stone">Stone Tiles</option>
+        <option value="brick">Brick Wall</option>
+        <option value="noise">Granite / Perlin Noise</option>
+      </select>
+      <label class="bg-[#2b2c36] hover:bg-[#383a47] text-xs text-white px-3 py-2 rounded-lg cursor-pointer transition border border-[#33343d]">
+        <span>Upload Custom</span>
+        <input type="file" id="imageUploader" accept="image/*" class="hidden">
+      </label>
+    </div>
+  </header>
+
+  <main class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-6xl">
+
+    <!-- STEP 1 PANEL -->
+    <section class="flex flex-col bg-[#1e1f26] rounded-2xl p-5 border border-[#2e303a] shadow-2xl relative">
+      <div class="mb-4">
+        <div class="text-xs font-semibold text-[#702af8] uppercase tracking-wider mb-1">Step 01</div>
+        <h2 class="text-base font-semibold text-white">1. Choose vertical or horizontal seams to remove</h2>
+        <p class="text-xs text-gray-400 mt-1">Preview texture on a 2x2 grid and adjust handle width to set blend area.</p>
+      </div>
+
+      <!-- Controls for Step 1 -->
+      <div class="bg-[#141519] p-3 rounded-xl border border-[#2b2c36] mb-4 space-y-3">
+        <!-- Width Parameter Slider -->
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label for="blendSlider" class="text-xs text-gray-300 font-medium flex items-center space-x-1">
+              <span>Seam Blend Area Width</span>
+              <span class="text-[10px] bg-[#2b2c36] text-gray-400 px-1.5 py-0.5 rounded" id="blendValText">20%</span>
+            </label>
+            <span class="text-[10px] text-gray-500">Affects overlap zone</span>
+          </div>
+          <input type="range" id="blendSlider" min="5" max="45" value="20" class="w-full cursor-pointer">
+        </div>
+
+        <!-- Seam Toggles -->
+        <div class="flex items-center justify-between pt-1 border-t border-[#22242c]">
+          <span class="text-xs text-gray-300 font-medium">Active Seams:</span>
+          <div class="flex space-x-4">
+            <label class="inline-flex items-center cursor-pointer text-xs text-gray-300">
+              <input type="checkbox" id="chkHorizontal" checked class="accent-[#702af8] mr-1.5 rounded">
+              Horizontal
+            </label>
+            <label class="inline-flex items-center cursor-pointer text-xs text-gray-300">
+              <input type="checkbox" id="chkVertical" checked class="accent-[#702af8] mr-1.5 rounded">
+              Vertical
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 1 Preview Viewport (2x2 Grid with dynamic overlays) -->
+      <div class="relative w-full aspect-square bg-[#141519] rounded-xl border border-[#2b2c36] overflow-hidden flex items-center justify-center group mb-4">
+        <!-- Canvas for 2x2 grid preview -->
+        <canvas id="previewCanvas2x2" class="texture-canvas"></canvas>
+
+        <!-- Horizontal Overlay Line & Handles -->
+        <div id="overlayHorizontal" class="seam-overlay w-full left-0 top-1/2 -translate-y-1/2"></div>
+        <div id="handleTop" class="seam-handle-capsule top-2 left-1/2 -translate-x-1/2 w-10 h-2.5">
+          <div class="w-4 h-0.5 bg-white opacity-80 rounded-full"></div>
+        </div>
+        <div id="handleBottom" class="seam-handle-capsule bottom-2 left-1/2 -translate-x-1/2 w-10 h-2.5">
+          <div class="w-4 h-0.5 bg-white opacity-80 rounded-full"></div>
+        </div>
+
+        <!-- Vertical Overlay Line & Handles -->
+        <div id="overlayVertical" class="seam-overlay h-full top-0 left-1/2 -translate-x-1/2"></div>
+        <div id="handleLeft" class="seam-handle-capsule left-2 top-1/2 -translate-y-1/2 w-2.5 h-10 flex-col">
+          <div class="h-4 w-0.5 bg-white opacity-80 rounded-full"></div>
+        </div>
+        <div id="handleRight" class="seam-handle-capsule right-2 top-1/2 -translate-y-1/2 w-2.5 h-10 flex-col">
+          <div class="h-4 w-0.5 bg-white opacity-80 rounded-full"></div>
+        </div>
+
+        <div class="absolute bottom-2 left-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] text-gray-300 border border-white/10">
+          2x2 Tile Intersection Grid
+        </div>
+      </div>
+
+      <!-- Make Seamless Trigger Button -->
+      <button id="btnMakeSeamless" class="mt-auto w-full py-3 bg-[#702af8] hover:bg-[#5d1ee0] text-white font-semibold rounded-xl shadow-lg transition flex items-center justify-center space-x-2 text-sm active:scale-[0.99]">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+        <span>Make Seamless</span>
+      </button>
+    </section>
+
+    <!-- STEP 2 PANEL -->
+    <section class="flex flex-col bg-[#1e1f26] rounded-2xl p-5 border border-[#2e303a] shadow-2xl relative">
+      <div class="mb-4">
+        <div class="text-xs font-semibold text-[#007bff] uppercase tracking-wider mb-1">Step 02</div>
+        <h2 class="text-base font-semibold text-white">2. Click "OK" to Apply</h2>
+        <p class="text-xs text-gray-400 mt-1">Review the processed seamless map tiled without cross patterns or visible edges.</p>
+      </div>
+
+      <!-- Tiling inspection mode toggle -->
+      <div class="bg-[#141519] p-3 rounded-xl border border-[#2b2c36] mb-4 flex items-center justify-between">
+        <span class="text-xs text-gray-300 font-medium">Result Tile View:</span>
+        <div class="flex space-x-1 bg-[#1e1f26] p-1 rounded-lg border border-[#2b2c36]">
+          <button id="btnView1x1" class="px-2.5 py-1 text-xs rounded-md text-gray-400 hover:text-white transition">1x1 Unit</button>
+          <button id="btnView2x2" class="px-2.5 py-1 text-xs rounded-md bg-[#702af8] text-white font-medium shadow">2x2 Tiles</button>
+          <button id="btnView3x3" class="px-2.5 py-1 text-xs rounded-md text-gray-400 hover:text-white transition">3x3 Tiles</button>
+        </div>
+      </div>
+
+      <!-- Step 2 Generated Result Viewport -->
+      <div class="relative w-full aspect-square bg-[#141519] rounded-xl border border-[#2b2c36] overflow-hidden flex items-center justify-center mb-4">
+        <canvas id="resultCanvas" class="texture-canvas"></canvas>
+
+        <div id="statusBadge" class="absolute top-3 left-3 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[11px] font-medium px-2.5 py-1 rounded-full flex items-center space-x-1.5 backdrop-blur-md">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="statusText">Seamless Generated</span>
+        </div>
+
+        <!-- Magnifier hint -->
+        <div class="absolute bottom-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] text-gray-300 border border-white/10 flex items-center space-x-1">
+          <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <span>Inspection Active</span>
+        </div>
+      </div>
+
+      <!-- Action Footer Buttons -->
+      <div class="mt-auto flex items-center space-x-3">
+        <button id="btnUndo" class="w-1/3 py-3 bg-[#2a2b33] hover:bg-[#343540] text-gray-200 font-medium rounded-xl transition text-sm">
+          Undo
+        </button>
+        <button id="btnApplyOK" class="w-2/3 py-3 bg-[#007bff] hover:bg-[#0066d4] text-white font-semibold rounded-xl shadow-lg transition text-sm flex items-center justify-center space-x-1.5 active:scale-[0.99]">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+          <span>OK (Apply)</span>
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed bottom-6 bg-[#141519] text-white px-5 py-3 rounded-xl border border-[#33343d] shadow-2xl flex items-center space-x-3 z-50">
+    <div class="w-2 h-2 rounded-full bg-emerald-400"></div>
+    <span id="toastMsg" class="text-sm">Seamless map applied successfully!</span>
+  </div>
+
+  <script>
+    const CANVAS_SIZE = 512;
+
+    // Offscreen Canvas for Base Raw Texture
+    const rawCanvas = document.createElement('canvas');
+    rawCanvas.width = CANVAS_SIZE;
+    rawCanvas.height = CANVAS_SIZE;
+    const rawCtx = rawCanvas.getContext('2d');
+
+    // Offscreen Canvas for Seamless Generated Result
+    const seamlessCanvas = document.createElement('canvas');
+    seamlessCanvas.width = CANVAS_SIZE;
+    seamlessCanvas.height = CANVAS_SIZE;
+    const seamlessCtx = seamlessCanvas.getContext('2d');
+
+    // UI Canvas Elements
+    const canvas2x2 = document.getElementById('previewCanvas2x2');
+    canvas2x2.width = CANVAS_SIZE;
+    canvas2x2.height = CANVAS_SIZE;
+    const ctx2x2 = canvas2x2.getContext('2d');
+
+    const resultCanvas = document.getElementById('resultCanvas');
+    resultCanvas.width = CANVAS_SIZE;
+    resultCanvas.height = CANVAS_SIZE;
+    const resultCtx = resultCanvas.getContext('2d');
+
+    // State
+    let blendWidthPct = 20; // 5 to 45%
+    let activeHorizontal = true;
+    let activeVertical = true;
+    let resultGridTiles = 2; // 1, 2, or 3
+    let customImageLoaded = false;
+
+    // DOM References
+    const blendSlider = document.getElementById('blendSlider');
+    const blendValText = document.getElementById('blendValText');
+    const chkHorizontal = document.getElementById('chkHorizontal');
+    const chkVertical = document.getElementById('chkVertical');
+    const overlayHorizontal = document.getElementById('overlayHorizontal');
+    const overlayVertical = document.getElementById('overlayVertical');
+    const texturePreset = document.getElementById('texturePreset');
+    const imageUploader = document.getElementById('imageUploader');
+    const btnMakeSeamless = document.getElementById('btnMakeSeamless');
+    const btnApplyOK = document.getElementById('btnApplyOK');
+    const btnUndo = document.getElementById('btnUndo');
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toastMsg');
+
+    function generateProceduralTexture(type) {
+      const w = CANVAS_SIZE;
+      const h = CANVAS_SIZE;
+      const imgData = rawCtx.createImageData(w, h);
+      const data = imgData.data;
+
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const idx = (y * w + x) * 4;
+          let r = 0, g = 0, b = 0;
+
+          if (type === 'wood') {
+            // Wood grain planks with prominent border seam lines
+            const plankHeight = h / 4;
+            const plankIdx = Math.floor(y / plankHeight);
+            const isPlankEdge = (y % plankHeight < 4) || (x === 0 || x === w - 1) || (y === 0 || y === h - 1);
+            
+            // Grain noise
+            const ring = Math.sin(x * 0.05 + Math.sin(y * 0.02) * 4) * 0.5 + 0.5;
+            const grain = (Math.random() * 0.15);
+            
+            r = Math.floor((0.65 + ring * 0.2 + grain) * 160);
+            g = Math.floor((0.45 + ring * 0.2 + grain) * 110);
+            b = Math.floor((0.25 + ring * 0.15 + grain) * 70);
+
+            if (isPlankEdge) {
+              r = Math.floor(r * 0.3);
+              g = Math.floor(g * 0.3);
+              b = Math.floor(b * 0.3);
+            }
+          } else if (type === 'stone') {
+            const tileSize = w / 2;
+            const isSeam = (x % tileSize < 6) || (y % tileSize < 6) || x < 4 || y < 4 || x > w - 5 || y > h - 5;
+            const noise = Math.random() * 40;
+            const base = 140 + noise;
+            
+            r = base; g = base - 10; b = base - 20;
+            if (isSeam) { r *= 0.3; g *= 0.3; b *= 0.3; }
+          } else if (type === 'brick') {
+            const rowH = h / 8;
+            const row = Math.floor(y / rowH);
+            const shift = (row % 2) * (w / 4);
+            const colW = w / 4;
+            const col = Math.floor((x + shift) / colW);
+            
+            const edge = (y % rowH < 3) || ((x + shift) % colW < 3) || x < 2 || y < 2 || x > w - 3 || y > h - 3;
+            r = 170 + Math.random() * 30;
+            g = 70 + Math.random() * 20;
+            b = 50 + Math.random() * 20;
+            if (edge) { r = 200; g = 195; b = 185; }
+          } else {
+            // Perlin/Noise pattern with hard boundary edges
+            const nx = Math.sin(x * 0.03) * Math.cos(y * 0.03) * 127 + 128;
+            const ny = Math.random() * 30;
+            const v = (nx + ny) % 255;
+            r = v; g = v * 0.8; b = v * 0.9;
+            
+            // Artificially make standard outer edges non-seamless
+            if (x < 15 || y < 15 || x > w - 15 || y > h - 15) {
+              r = Math.min(255, r + 60);
+              g = Math.max(0, g - 40);
+            }
+          }
+
+          data[idx] = r;
+          data[idx + 1] = g;
+          data[idx + 2] = b;
+          data[idx + 3] = 255;
+        }
+      }
+
+      rawCtx.putImageData(imgData, 0, 0);
+      updateStep1Display();
+      processSeamlessTexture();
+    }
+
+    function updateStep1Display() {
+      // Draw 2x2 grid of raw texture onto canvas2x2
+      ctx2x2.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      const half = CANVAS_SIZE / 2;
+      
+      // Tile 4 quadrants
+      ctx2x2.drawImage(rawCanvas, 0, 0, half, half);
+      ctx2x2.drawImage(rawCanvas, half, 0, half, half);
+      ctx2x2.drawImage(rawCanvas, 0, half, half, half);
+      ctx2x2.drawImage(rawCanvas, half, half, half, half);
+
+      // Draw subtle dashed dividing grid lines
+      ctx2x2.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx2x2.setLineDash([4, 4]);
+      ctx2x2.beginPath();
+      ctx2x2.moveTo(half, 0); ctx2x2.lineTo(half, CANVAS_SIZE);
+      ctx2x2.moveTo(0, half); ctx2x2.lineTo(CANVAS_SIZE, half);
+      ctx2x2.stroke();
+      ctx2x2.setLineDash([]);
+
+      // Update overlay element dimensions to match blend slider %
+      const pct = blendWidthPct;
+      
+      if (activeHorizontal) {
+        overlayHorizontal.style.display = 'block';
+        overlayHorizontal.style.height = `${pct}%`;
+      } else {
+        overlayHorizontal.style.display = 'none';
+      }
+
+      if (activeVertical) {
+        overlayVertical.style.display = 'block';
+        overlayVertical.style.width = `${pct}%`;
+      } else {
+        overlayVertical.style.display = 'none';
+      }
+    }
+
+    function processSeamlessTexture() {
+      const w = CANVAS_SIZE;
+      const h = CANVAS_SIZE;
+
+      // 1. Get raw image pixels
+      const srcData = rawCtx.getImageData(0, 0, w, h);
+      const src = srcData.data;
+
+      // 2. Prepare destination image data
+      const outData = seamlessCtx.createImageData(w, h);
+      const dst = outData.data;
+
+      // Calculate seam blend margin in pixels
+      const blendMarginX = activeVertical ? Math.floor(w * (blendWidthPct / 100)) : 0;
+      const blendMarginY = activeHorizontal ? Math.floor(h * (blendWidthPct / 100)) : 0;
+
+      const halfW = Math.floor(w / 2);
+      const halfH = Math.floor(h / 2);
+
+      // Smooth cosine interpolation function
+      const smoothstep = (t) => t * t * (3 - 2 * t);
+
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          // Wrap coordinates by 50% shift to bring seams to center
+          const ox = (x + halfW) % w;
+          const oy = (y + halfH) % h;
+
+          // Calculate distance from offset central seams
+          const distX = Math.abs(ox - halfW);
+          const distY = Math.abs(oy - halfH);
+
+          // Calculate blending weights for x and y
+          let alphaX = 0;
+          if (blendMarginX > 0 && distX < blendMarginX) {
+            const factor = 0.5 + 0.5 * (distX / blendMarginX);
+            alphaX = 1 - smoothstep(factor);
+          }
+
+          let alphaY = 0;
+          if (blendMarginY > 0 && distY < blendMarginY) {
+            const factor = 0.5 + 0.5 * (distY / blendMarginY);
+            alphaY = 1 - smoothstep(factor);
+          }
+
+          // Combine seam mask weights
+          const blendWeight = Math.max(alphaX, alphaY);
+
+          // Sample primary offset pixel and secondary original pixel
+          const p1 = (y * w + x) * 4;
+          const p2 = (oy * w + ox) * 4;
+
+          for (let c = 0; c < 3; c++) {
+            const origVal = src[p1 + c];
+            const offsetVal = src[p2 + c];
+            // Crossfade transition to erase boundary seam discontinuities
+            dst[p1 + c] = Math.floor(origVal * (1 - blendWeight) + offsetVal * blendWeight);
+          }
+          dst[p1 + 3] = 255;
+        }
+      }
+
+      seamlessCtx.putImageData(outData, 0, 0);
+      renderResultDisplay();
+    }
+
+    function renderResultDisplay() {
+      resultCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      const tiles = resultGridTiles;
+      const tileSize = CANVAS_SIZE / tiles;
+
+      for (let r = 0; r < tiles; r++) {
+        for (let c = 0; c < tiles; c++) {
+          resultCtx.drawImage(seamlessCanvas, c * tileSize, r * tileSize, tileSize, tileSize);
+        }
+      }
+    }
+
+    // Slider event
+    blendSlider.addEventListener('input', (e) => {
+      blendWidthPct = parseInt(e.target.value);
+      blendValText.textContent = `${blendWidthPct}%`;
+      updateStep1Display();
+    });
+
+    // Checkbox toggles
+    chkHorizontal.addEventListener('change', (e) => {
+      activeHorizontal = e.target.checked;
+      updateStep1Display();
+    });
+
+    chkVertical.addEventListener('change', (e) => {
+      activeVertical = e.target.checked;
+      updateStep1Display();
+    });
+
+    // Pattern preset dropdown
+    texturePreset.addEventListener('change', (e) => {
+      generateProceduralTexture(e.target.value);
+    });
+
+    // Custom image uploader
+    imageUploader.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const img = new Image();
+        img.onload = () => {
+          rawCtx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+          updateStep1Display();
+          processSeamlessTexture();
+        };
+        img.src = URL.createObjectURL(file);
+      }
+    });
+
+    // Step 2 Tiling View Buttons
+    const btnView1x1 = document.getElementById('btnView1x1');
+    const btnView2x2 = document.getElementById('btnView2x2');
+    const btnView3x3 = document.getElementById('btnView3x3');
+
+    function setActiveTileBtn(btn) {
+      [btnView1x1, btnView2x2, btnView3x3].forEach(b => {
+        b.className = 'px-2.5 py-1 text-xs rounded-md text-gray-400 hover:text-white transition';
+      });
+      btn.className = 'px-2.5 py-1 text-xs rounded-md bg-[#702af8] text-white font-medium shadow';
+    }
+
+    btnView1x1.addEventListener('click', () => {
+      resultGridTiles = 1;
+      setActiveTileBtn(btnView1x1);
+      renderResultDisplay();
+    });
+
+    btnView2x2.addEventListener('click', () => {
+      resultGridTiles = 2;
+      setActiveTileBtn(btnView2x2);
+      renderResultDisplay();
+    });
+
+    btnView3x3.addEventListener('click', () => {
+      resultGridTiles = 3;
+      setActiveTileBtn(btnView3x3);
+      renderResultDisplay();
+    });
+    // Trigger seamless generator button
+    btnMakeSeamless.addEventListener('click', () => {
+      processSeamlessTexture();
+      showToast("Texture processed! Seamless blend generated.");
+    });
+
+    // Apply OK button
+    btnApplyOK.addEventListener('click', () => {
+      showToast("Seamless map applied to material!");
+    });
+
+    // Undo button reset
+    btnUndo.addEventListener('click', () => {
+      blendSlider.value = 20;
+      blendWidthPct = 20;
+      blendValText.textContent = '20%';
+      chkHorizontal.checked = true;
+      chkVertical.checked = true;
+      activeHorizontal = true;
+      activeVertical = true;
+      updateStep1Display();
+      processSeamlessTexture();
+      showToast("Reset seam parameters.");
+    });
+
+    function showToast(msg) {
+      toastMsg.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2500);
+    }
+
+    // Initialize initial default texture on load
+    window.onload = () => {
+      generateProceduralTexture('wood');
+    };
+  </script>
+</body>
+</html>

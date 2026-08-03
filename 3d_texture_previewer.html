@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Texture Previewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a202c; color: white; font-family: 'Inter', sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 320px;
+            background: rgba(31, 41, 55, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .control-group { margin-bottom: 15px; }
+        .control-group label { display: block; margin-bottom: 5px; font-size: 0.875rem; color: #cbd5e1; }
+        .control-group input[type="range"] {
+            width: 100%;
+            accent-color: #3b82f6;
+        }
+        .control-group select {
+            width: 100%;
+            padding: 8px;
+            background: #374151;
+            border: 1px solid #4b5563;
+            color: white;
+            border-radius: 6px;
+            outline: none;
+        }
+        .control-group select:focus { border-color: #3b82f6; }
+        .map-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            padding: 6px 10px;
+            background: #374151;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #ef4444; /* Red by default (not loaded) */
+        }
+        .status-indicator.loaded { background-color: #10b981; /* Green when loaded */ }
+        
+        /* Custom scrollbar for UI */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        
+        #loading-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #111827;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            transition: opacity 0.5s ease;
+        }
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.1);
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            border-left-color: #3b82f6;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="loading-overlay">
+        <div class="spinner mb-4"></div>
+        <div id="loading-text" class="text-gray-300">Loading Textures & Engine...</div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-container">
+        <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2 text-white">Texture Previewer</h2>
+        
+        <div class="mb-6">
+            <h3 class="text-sm font-semibold text-blue-400 mb-2 uppercase tracking-wider">Loaded Maps</h3>
+            <div class="map-status"><span class="text-gray-300">Albedo (Color)</span> <div id="status-alb" class="status-indicator"></div></div>
+            <div class="map-status"><span class="text-gray-300">Normal</span> <div id="status-nrm" class="status-indicator"></div></div>
+            <div class="map-status"><span class="text-gray-300">Roughness</span> <div id="status-rgh" class="status-indicator"></div></div>
+            <div class="map-status"><span class="text-gray-300">Ambient Occlusion</span> <div id="status-ao" class="status-indicator"></div></div>
+        </div>
+
+        <div class="mb-6">
+            <h3 class="text-sm font-semibold text-blue-400 mb-2 uppercase tracking-wider">Geometry</h3>
+            <div class="control-group">
+                <label for="shape-select">Shape</label>
+                <select id="shape-select">
+                    <option value="plane">Plane (Floor)</option>
+                    <option value="sphere">Sphere</option>
+                    <option value="cube">Cube</option>
+                    <option value="cylinder">Cylinder</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <h3 class="text-sm font-semibold text-blue-400 mb-2 uppercase tracking-wider">Material Settings</h3>
+            <div class="control-group">
+                <label for="tiling-slider">Texture Tiling (<span id="tiling-val">1</span>x)</label>
+                <input type="range" id="tiling-slider" min="0.5" max="10" step="0.5" value="1">
+            </div>
+            <div class="control-group">
+                <label for="normal-scale-slider">Normal Strength (<span id="normal-val">1.0</span>)</label>
+                <input type="range" id="normal-scale-slider" min="0" max="3" step="0.1" value="1">
+            </div>
+            <div class="control-group">
+                <label for="ao-intensity-slider">AO Intensity (<span id="ao-val">1.0</span>)</label>
+                <input type="range" id="ao-intensity-slider" min="0" max="2" step="0.1" value="1">
+            </div>
+             <div class="control-group">
+                <label for="env-intensity-slider">Env Reflection (<span id="env-val">1.0</span>)</label>
+                <input type="range" id="env-intensity-slider" min="0" max="3" step="0.1" value="1">
+            </div>
+        </div>
+        
+        <div>
+            <h3 class="text-sm font-semibold text-blue-400 mb-2 uppercase tracking-wider">Lighting</h3>
+            <div class="control-group">
+                <label for="light-intensity-slider">Dir Light Intensity (<span id="light-val">2.0</span>)</label>
+                <input type="range" id="light-intensity-slider" min="0" max="5" step="0.1" value="2">
+            </div>
+            <div class="control-group">
+                <label for="light-x-slider">Light Rotation X</label>
+                <input type="range" id="light-x-slider" min="-180" max="180" step="1" value="45">
+            </div>
+             <div class="control-group">
+                <label for="light-y-slider">Light Rotation Y</label>
+                <input type="range" id="light-y-slider" min="-180" max="180" step="1" value="45">
+            </div>
+        </div>
+        
+        <div class="mt-4 text-xs text-gray-400 text-center">
+            Left Click + Drag: Rotate<br>
+            Right Click + Drag: Pan<br>
+            Scroll: Zoom
+        </div>
+    </div>
+
+    <!-- Import maps polyfill -->
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+
+        let camera, scene, renderer, controls;
+        let currentMesh, material;
+        let dirLight;
+        
+        // Define texture files from user input
+        const textureFiles = {
+            albedo: 'TERRAZO-FLOORING-STC-GEN-TEXTURE_alb.jpg',
+            normal: 'TERRAZO-FLOORING-STC-GEN-TEXTURE_nrm.jpg',
+            roughness: 'TERRAZO-FLOORING-STC-GEN-TEXTURE_rgh.jpg',
+            ao: 'TERRAZO-FLOORING-STC-GEN-TEXTURE_ao.png'
+        };
+        
+        const textures = {};
+
+        init();
+        animate();
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a202c); // Match tailwind gray-900
+
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 3, 4);
+
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Controls setup
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 1;
+            controls.maxDistance = 20;
+            controls.target.set(0, 0, 0);
+
+            // Ambient Light
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+            scene.add(ambientLight);
+
+            // Directional Light (Sun)
+            dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
+            updateLightPosition(45, 45); // Initial position based on sliders
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.camera.near = 0.5;
+            dirLight.shadow.camera.far = 15;
+            dirLight.shadow.bias = -0.001;
+            scene.add(dirLight);
+
+            // Add a subtle rim light for better shape definition
+            const rimLight = new THREE.DirectionalLight(0xaaccff, 0.5);
+            rimLight.position.set(-5, 5, -5);
+            scene.add(rimLight);
+
+            // Load HDRI for realistic reflections and lighting
+            new RGBELoader()
+                .setPath('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/equirectangular/')
+                .load('royal_esplanade_1k.hdr', function (texture) {
+                    texture.mapping = THREE.EquirectangularReflectionMapping;
+                    scene.environment = texture;
+                    // Note: intentionally not setting scene.background to keep the clean dark UI look
+                });
+
+            // Load specific textures
+            const textureLoader = new THREE.TextureLoader();
+            let loadedCount = 0;
+            const totalTextures = Object.keys(textureFiles).length;
+
+            const updateLoadingProgress = () => {
+                loadedCount++;
+                if (loadedCount === totalTextures) {
+                    createMaterialAndMesh();
+                    document.getElementById('loading-overlay').style.opacity = '0';
+                    setTimeout(() => {
+                        document.getElementById('loading-overlay').style.display = 'none';
+                    }, 500);
+                }
+            };
+
+            // Error handler for textures
+            const onTextureError = (type) => {
+                console.error(`Failed to load ${type} texture.`);
+                document.getElementById('loading-text').innerText = `Error loading ${type} texture. Ensure files are in the same directory.`;
+                document.getElementById('loading-text').classList.add('text-red-400');
+                // Even on error, update progress so we don't hang forever, but UI indicator stays red
+                updateLoadingProgress();
+            };
+
+            // Load Albedo
+            textureLoader.load(textureFiles.albedo, 
+                (tex) => { 
+                    tex.colorSpace = THREE.SRGBColorSpace; 
+                    textures.albedo = tex; 
+                    document.getElementById('status-alb').classList.add('loaded');
+                    updateLoadingProgress(); 
+                }, 
+                undefined, () => onTextureError('Albedo')
+            );
+
+            // Load Normal
+            textureLoader.load(textureFiles.normal, 
+                (tex) => { 
+                    textures.normal = tex; 
+                    document.getElementById('status-nrm').classList.add('loaded');
+                    updateLoadingProgress(); 
+                }, 
+                undefined, () => onTextureError('Normal')
+            );
+
+            // Load Roughness
+            textureLoader.load(textureFiles.roughness, 
+                (tex) => { 
+                    textures.roughness = tex; 
+                    document.getElementById('status-rgh').classList.add('loaded');
+                    updateLoadingProgress(); 
+                }, 
+                undefined, () => onTextureError('Roughness')
+            );
+
+            // Load AO
+            textureLoader.load(textureFiles.ao, 
+                (tex) => { 
+                    textures.ao = tex; 
+                    document.getElementById('status-ao').classList.add('loaded');
+                    updateLoadingProgress(); 
+                }, 
+                undefined, () => onTextureError('AO')
+            );
+
+            // Setup UI Event Listeners
+            setupUIControls();
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createMaterialAndMesh() {
+            // Apply tiling settings to all loaded textures
+            const repeat = parseFloat(document.getElementById('tiling-slider').value);
+            
+            Object.values(textures).forEach(tex => {
+                if (tex) {
+                    tex.wrapS = THREE.RepeatWrapping;
+                    tex.wrapT = THREE.RepeatWrapping;
+                    tex.repeat.set(repeat, repeat);
+                }
+            });
+
+            // Create MeshStandardMaterial which supports all our PBR maps
+            material = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                map: textures.albedo || null,
+                normalMap: textures.normal || null,
+                normalScale: new THREE.Vector2(1, 1),
+                roughnessMap: textures.roughness || null,
+                roughness: 1.0, // When map is present, this multiplies with it
+                aoMap: textures.ao || null,
+                aoMapIntensity: 1.0,
+                envMapIntensity: 1.0
+            });
+
+            // If textures failed to load, set some fallback colors/settings so we see *something*
+            if (!textures.albedo) material.color.setHex(0xaaaaaa);
+            if (!textures.roughness) material.roughness = 0.5;
+
+            // Generate initial shape
+            updateShape(document.getElementById('shape-select').value);
+        }
+
+        function updateShape(shapeType) {
+            if (currentMesh) {
+                scene.remove(currentMesh);
+                currentMesh.geometry.dispose();
+            }
+
+            let geometry;
+            switch (shapeType) {
+                case 'plane':
+                    // High segment count for better lighting/displacement if we ever added it
+                    geometry = new THREE.PlaneGeometry(6, 6, 64, 64);
+                    // Rotate to be a floor
+                    geometry.rotateX(-Math.PI / 2);
+                    // Adjust UVs for plane so tiling feels consistent with 3D shapes
+                    break;
+                case 'sphere':
+                    geometry = new THREE.SphereGeometry(2, 64, 64);
+                    break;
+                case 'cube':
+                    geometry = new THREE.BoxGeometry(3, 3, 3, 32, 32, 32);
+                    break;
+                case 'cylinder':
+                    geometry = new THREE.CylinderGeometry(1.5, 1.5, 3, 64, 16);
+                    break;
+                default:
+                    geometry = new THREE.PlaneGeometry(5, 5);
+            }
+
+            // Important: Standard material AO needs a second UV set to work properly in Three.js
+            if (!geometry.attributes.uv2) {
+                geometry.setAttribute('uv2', new THREE.BufferAttribute(geometry.attributes.uv.array, 2));
+            }
+
+            currentMesh = new THREE.Mesh(geometry, material);
+            currentMesh.castShadow = true;
+            currentMesh.receiveShadow = true;
+            
+            // Adjust camera slightly based on shape
+            if (shapeType === 'plane') {
+                camera.position.set(0, 4, 4);
+                controls.target.set(0, 0, 0);
+            } else {
+                camera.position.set(0, 2, 6);
+                controls.target.set(0, 0, 0);
+            }
+            controls.update();
+
+            scene.add(currentMesh);
+        }
+
+        function updateLightPosition(xDeg, yDeg) {
+            // Convert spherical coordinates to Cartesian for directional light
+            const radius = 10;
+            const phi = THREE.MathUtils.degToRad(90 - yDeg); // Elevation
+            const theta = THREE.MathUtils.degToRad(xDeg);    // Azimuth
+
+            dirLight.position.setFromSphericalCoords(radius, phi, theta);
+        }
+
+        function setupUIControls() {
+            // Shape select
+            document.getElementById('shape-select').addEventListener('change', (e) => {
+                updateShape(e.target.value);
+            });
+
+            // Tiling
+            const tilingSlider = document.getElementById('tiling-slider');
+            const tilingVal = document.getElementById('tiling-val');
+            tilingSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                tilingVal.innerText = val.toFixed(1);
+                Object.values(textures).forEach(tex => {
+                    if (tex) tex.repeat.set(val, val);
+                });
+            });
+
+            // Normal Scale
+            const normalSlider = document.getElementById('normal-scale-slider');
+            const normalVal = document.getElementById('normal-val');
+            normalSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                normalVal.innerText = val.toFixed(1);
+                if (material && material.normalScale) {
+                    material.normalScale.set(val, val);
+                }
+            });
+
+            // AO Intensity
+            const aoSlider = document.getElementById('ao-intensity-slider');
+            const aoVal = document.getElementById('ao-val');
+            aoSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                aoVal.innerText = val.toFixed(1);
+                if (material) {
+                    material.aoMapIntensity = val;
+                }
+            });
+
+            // Environment Intensity
+            const envSlider = document.getElementById('env-intensity-slider');
+            const envVal = document.getElementById('env-val');
+            envSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                envVal.innerText = val.toFixed(1);
+                if (material) {
+                    material.envMapIntensity = val;
+                }
+            });
+
+            // Light Intensity
+            const lightSlider = document.getElementById('light-intensity-slider');
+            const lightVal = document.getElementById('light-val');
+            lightSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                lightVal.innerText = val.toFixed(1);
+                if (dirLight) {
+                    dirLight.intensity = val;
+                }
+            });
+
+            // Light Position (X/Y)
+            const lightXSlider = document.getElementById('light-x-slider');
+            const lightYSlider = document.getElementById('light-y-slider');
+            
+            const handleLightMove = () => {
+                updateLightPosition(
+                    parseFloat(lightXSlider.value), 
+                    parseFloat(lightYSlider.value)
+                );
+            };
+
+            lightXSlider.addEventListener('input', handleLightMove);
+            lightYSlider.addEventListener('input', handleLightMove);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update(); // required if controls.enableDamping or controls.autoRotate are set
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>

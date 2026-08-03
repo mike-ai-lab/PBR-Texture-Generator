@@ -1,0 +1,896 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PBR Texture Generator</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{display:flex;height:100vh;overflow:hidden;background:#13131a;color:#e2e8f0;font-family:'Segoe UI',sans-serif}
+#panel{width:300px;min-width:300px;height:100vh;background:#1a1a24;border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;overflow-y:auto}
+#panel-header{padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,.07)}
+#panel-header h1{font-size:15px;font-weight:700;color:#fff}
+#panel-header p{font-size:11px;color:#4f8ef7;margin-top:2px}
+.section{padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.05)}
+.sec-title{font-size:10px;font-weight:700;letter-spacing:1.2px;color:#4f8ef7;text-transform:uppercase;margin-bottom:10px}
+#drop-zone{border:2px dashed #2d3748;border-radius:12px;padding:22px 14px;text-align:center;cursor:pointer;transition:.2s;background:#13131a}
+#drop-zone:hover,#drop-zone.drag{border-color:#4f8ef7;background:#1a2030}
+#drop-zone img{max-width:100%;max-height:140px;border-radius:8px;display:none;margin:0 auto}
+#drop-zone .hint{font-size:12px;color:#64748b;line-height:1.7}
+#drop-zone .hint span{display:block;font-size:22px;margin-bottom:6px}
+#file-name{font-size:11px;color:#94a3b8;margin-top:8px;word-break:break-all;text-align:center}
+#file-input{display:none}
+.ctrl{margin-bottom:12px}
+.ctrl-row{display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;margin-bottom:5px}
+.ctrl-row b{color:#4f8ef7;font-weight:600}
+input[type=range]{width:100%;accent-color:#4f8ef7;cursor:pointer}
+#btn-generate{width:100%;padding:12px;background:#4f8ef7;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px}
+#btn-generate:hover{background:#3a70d4}
+#btn-generate:disabled{background:#2a3a5a;color:#64748b;cursor:not-allowed}
+#status{font-size:11px;color:#64748b;text-align:center;min-height:16px;padding:2px 0 6px}
+#status.ok{color:#10b981}
+#status.err{color:#ef4444}
+.map-pill{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#94a3b8;padding:5px 10px;background:rgba(255,255,255,.04);border-radius:6px;margin-bottom:6px;transition:.3s}
+.map-pill .pill-icon{font-size:14px;transition:.3s;min-width:18px;text-align:right}
+.map-pill.working{background:rgba(79,142,247,.08);color:#e2e8f0}
+.map-pill.done{background:rgba(16,185,129,.08);color:#e2e8f0}
+.dot{width:8px;height:8px;border-radius:50%;background:#ef4444;transition:.3s}
+.dot.ok{background:#10b981}
+/* progress bar */
+#progress-wrap{margin-top:6px;display:none}
+#progress-bar-outer{height:4px;background:#1e2433;border-radius:2px;overflow:hidden}
+#progress-bar{height:4px;width:0%;background:#4f8ef7;border-radius:2px;transition:width .3s}
+#progress-label{font-size:10px;color:#64748b;margin-top:4px;min-height:14px}
+select{width:100%;padding:7px 10px;font-size:12px;background:#1e2433;border:1px solid #2d3748;color:#e2e8f0;border-radius:7px;outline:none;cursor:pointer}
+select:focus{border-color:#4f8ef7}
+#canvas-wrap{flex:1;position:relative;overflow:hidden}
+#view-3d{position:absolute;inset:0}
+#view-3d.hidden{display:none}
+#canvas-hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-size:11px;color:#475569;text-align:center;pointer-events:none;white-space:nowrap}
+/* 2D/3D toggle */
+#view-toggle{position:absolute;top:14px;right:14px;display:flex;background:#1a1a24;border-radius:8px;border:1px solid #2d3748;overflow:hidden;z-index:5}
+#view-toggle button{padding:6px 14px;font-size:11px;font-weight:600;border:none;background:transparent;color:#64748b;cursor:pointer;transition:.15s}
+#view-toggle button.active{background:#4f8ef7;color:#fff}
+/* Top toolbar */
+#toolbar{position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:8px;z-index:5}
+.tb-group{display:flex;background:rgba(20,20,30,0.88);border-radius:8px;border:1px solid rgba(255,255,255,.1);overflow:hidden;backdrop-filter:blur(8px)}
+.tb-group button{padding:6px 13px;font-size:11px;font-weight:600;border:none;background:transparent;color:#64748b;cursor:pointer;transition:.15s;white-space:nowrap}
+.tb-group button.active{background:#4f8ef7;color:#fff}
+.tb-group button:hover:not(.active){color:#e2e8f0;background:rgba(255,255,255,.06)}
+.tb-select-wrap{position:relative;display:flex;align-items:center;background:rgba(20,20,30,0.88);border:1px solid rgba(255,255,255,.1);border-radius:8px;backdrop-filter:blur(8px);padding:0 10px;height:30px;gap:6px}
+.tb-select-wrap span{font-size:10px;color:#64748b;font-weight:600;letter-spacing:.5px;white-space:nowrap;text-transform:uppercase}
+.tb-select-wrap select{background:transparent;border:none;color:#e2e8f0;font-size:11px;outline:none;cursor:pointer;padding-right:2px}
+.tb-select-wrap select option{background:#1a1a24}
+/* 2D grid */
+#view-2d{display:none;width:100%;height:100%;overflow:auto;padding:20px;gap:14px;grid-template-columns:repeat(2,1fr);align-content:start;background:#13131a}
+#view-2d.visible{display:grid}
+.map-card{background:#1a1a24;border-radius:12px;overflow:hidden;border:1px solid #2d3748}
+.map-card-title{padding:8px 12px;font-size:11px;font-weight:600;color:#94a3b8;border-bottom:1px solid #2d3748;display:flex;justify-content:space-between;align-items:center}
+.map-card img{width:100%;display:block;image-rendering:auto}
+.map-card .placeholder{height:160px;display:flex;align-items:center;justify-content:center;font-size:28px;color:#2d3748}
+.btn-dl{padding:3px 10px;font-size:10px;font-weight:600;background:transparent;border:1px solid #2d3748;color:#64748b;border-radius:5px;cursor:pointer;transition:.15s;text-decoration:none}
+.btn-dl:hover{border-color:#4f8ef7;color:#4f8ef7}
+/* Tiling test — render albedo tiled 3x3 using CSS background-repeat */
+#tile-test-canvas{width:100%;height:220px;background-repeat:repeat;background-size:33.33%;image-rendering:auto;border-radius:0 0 12px 12px}
+#loading{position:absolute;inset:0;background:#13131a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9;transition:opacity .4s}
+.spinner{width:42px;height:42px;border-radius:50%;border:3px solid rgba(255,255,255,.08);border-top-color:#4f8ef7;animation:spin .8s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+#load-txt{font-size:13px;color:#64748b}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-thumb{background:#2d3748;border-radius:3px}
+/* Seamless preview modal */
+#seamless-modal{display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);align-items:center;justify-content:center}
+#seamless-modal.open{display:flex}
+#seamless-modal-box{background:#1a1a24;border:1px solid #2d3748;border-radius:16px;width:600px;height:700px;max-width:95vw;max-height:95vh;padding:20px;display:flex;flex-direction:column;gap:14px}
+#seamless-modal-box h2{font-size:13px;font-weight:700;color:#fff}
+#seamless-modal-box p{font-size:11px;color:#64748b}
+#sm-canvas-wrap{position:relative;flex:1;border-radius:10px;overflow:hidden;background:#111}
+#sm-canvas{width:100%;height:100%;display:block;image-rendering:auto}
+/* seam overlay lines */
+#sm-ov-h{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);background:rgba(79,142,247,.25);border-top:1px dashed rgba(79,142,247,.8);border-bottom:1px dashed rgba(79,142,247,.8);pointer-events:none;transition:height .15s}
+#sm-ov-v{position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);background:rgba(79,142,247,.25);border-left:1px dashed rgba(79,142,247,.8);border-right:1px dashed rgba(79,142,247,.8);pointer-events:none;transition:width .15s}
+.sm-label{position:absolute;font-size:9px;font-weight:700;letter-spacing:.8px;color:rgba(79,142,247,.9);text-transform:uppercase;pointer-events:none}
+#sm-label-h{top:50%;left:6px;transform:translateY(-50%)}
+#sm-label-v{left:50%;top:6px;transform:translateX(-50%)}
+#sm-footer{display:flex;gap:10px;align-items:center}
+#sm-footer .ctrl{flex:1;margin:0}
+/* map channel toggles */
+.map-toggle{padding:4px 10px;font-size:10px;font-weight:600;border-radius:6px;border:1px solid #2d3748;background:transparent;color:#475569;cursor:pointer;transition:.15s}
+.map-toggle.active{border-color:#4f8ef7;color:#4f8ef7;background:rgba(79,142,247,.1)}
+.map-toggle:hover:not(.active){border-color:#64748b;color:#94a3b8}
+/* seamless preview trigger button */
+#btn-sm-preview{width:100%;padding:7px;margin-bottom:8px;background:transparent;border:1px solid #4f8ef7;color:#4f8ef7;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;transition:.15s;display:none}
+#btn-sm-preview:hover{background:rgba(79,142,247,.1)}
+/* modal action buttons */
+#btn-sm-apply{padding:10px 20px;background:#4f8ef7;color:#fff;border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+#btn-sm-apply:hover{background:#3a70d4}
+#btn-sm-cancel{padding:10px 16px;background:transparent;color:#64748b;border:1px solid #2d3748;border-radius:9px;font-size:12px;cursor:pointer;white-space:nowrap}
+#btn-sm-cancel:hover{color:#e2e8f0;border-color:#475569}
+#btn-sm-apply{padding:10px 20px;background:#4f8ef7;color:#fff;border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+#btn-sm-apply:hover{background:#3a70d4}
+#btn-sm-cancel{padding:10px 16px;background:transparent;color:#64748b;border:1px solid #2d3748;border-radius:9px;font-size:12px;cursor:pointer}
+#btn-sm-cancel:hover{color:#e2e8f0;border-color:#475569}
+</style>
+</head>
+<body>
+<div id="panel">
+  <div id="panel-header">
+    <h1>PBR Texture Generator</h1>
+    <p>Generate &amp; Preview in 3D</p>
+  </div>
+  <div class="section">
+    <div class="sec-title">Input Texture</div>
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <img id="preview-thumb">
+      <div class="hint"><span>&#8593;</span>Drag &amp; drop or click to browse</div>
+    </div>
+    <div id="file-name">No file selected</div>
+    <input type="file" id="file-input" accept="image/*">
+  </div>
+  <div class="section">
+    <div class="sec-title">Generation Settings</div>
+    <div class="ctrl">
+      <div class="ctrl-row"><span>Normal Strength</span><b id="vns">10</b></div>
+      <input type="range" id="ns" min="1" max="30" step="1" value="10">
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-row"><span>Roughness Alpha</span><b id="vra">0.80</b></div>
+      <input type="range" id="ra" min="0.1" max="2.0" step="0.05" value="0.8">
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-row"><span>Roughness Offset</span><b id="vrb">50</b></div>
+      <input type="range" id="rb" min="-100" max="100" step="1" value="50">
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-row"><span>AO Intensity</span><b id="vaogen">1.5</b></div>
+      <input type="range" id="aogen" min="0.5" max="3.0" step="0.1" value="1.5">
+    </div>
+    <!-- Seamless toggle -->
+    <div class="ctrl" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-size:12px;color:#94a3b8">Make Seamless</span>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="chk-seamless" style="width:15px;height:15px;accent-color:#4f8ef7;cursor:pointer">
+      </label>
+    </div>
+    <div id="seamless-opts" style="display:none">
+      <button id="btn-sm-preview">⬡ Preview Seams &amp; Blend Zone</button>
+      <div class="ctrl">
+        <div class="ctrl-row"><span>Blend Width</span><b id="vblend">0.25</b></div>
+        <input type="range" id="blend-ratio" min="0.01" max="0.50" step="0.01" value="0.25">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-row"><span>Working Size</span></div>
+        <select id="work-size">
+          <option value="256">256 px — fastest</option>
+          <option value="512" selected>512 px — balanced</option>
+          <option value="768">768 px — higher detail</option>
+          <option value="1024">1024 px — best quality</option>
+        </select>
+      </div>
+    </div>
+    <button id="btn-generate" disabled>Generate Maps</button>
+    <div id="status">Ready</div>
+  </div>
+  <div class="section">
+    <div class="sec-title">Output Maps</div>
+    <div class="map-pill" id="pill-alb"><span>Albedo</span>      <span class="pill-icon">—</span></div>
+    <div class="map-pill" id="pill-nrm"><span>Normal</span>      <span class="pill-icon">—</span></div>
+    <div class="map-pill" id="pill-rgh"><span>Roughness</span>   <span class="pill-icon">—</span></div>
+    <div class="map-pill" id="pill-ao" ><span>Ambient Occ.</span><span class="pill-icon">—</span></div>
+    <div id="progress-wrap">
+      <div id="progress-bar-outer"><div id="progress-bar"></div></div>
+      <div id="progress-label"></div>
+    </div>
+    <button id="btn-dl-all" style="width:100%;margin-top:8px;padding:8px;background:transparent;border:1px solid #2d3748;color:#64748b;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;transition:.15s" disabled>&#8595; Download All Maps</button>
+  </div>
+  <div class="section" id="section-3d-controls">
+    <div class="sec-title">3D Preview Controls</div>
+
+    <!-- Map channel toggles -->
+    <div style="margin-bottom:12px">
+      <div class="ctrl-row" style="margin-bottom:6px"><span>Active Maps</span><span style="font-size:10px;color:#475569">click to toggle</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="map-toggle active" id="tog-albedo"    data-map="albedo">Albedo</button>
+        <button class="map-toggle active" id="tog-normal"    data-map="normal">Normal</button>
+        <button class="map-toggle active" id="tog-roughness" data-map="roughness">Roughness</button>
+        <button class="map-toggle active" id="tog-ao"        data-map="ao">AO</button>
+      </div>
+    </div>
+
+    <div class="ctrl">
+      <div class="ctrl-row"><span>Tiling</span><b id="vtile">1.0x</b></div>
+      <input type="range" id="tile" min="0.5" max="10" step="0.5" value="1">
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-row"><span>Normal Strength (preview)</span><b id="vnsc">1.0</b></div>
+      <input type="range" id="nsc" min="0" max="3" step="0.1" value="1">
+    </div>
+    <div class="ctrl">
+      <div class="ctrl-row"><span>AO Intensity (preview)</span><b id="vaoi">0.7</b></div>
+      <input type="range" id="aoi" min="0" max="2" step="0.1" value="0.7">
+    </div>
+
+    <!-- Opacity / transparency -->
+    <div class="ctrl">
+      <div class="ctrl-row">
+        <span>Opacity</span>
+        <span style="font-size:10px;color:#475569">for glass / refractive materials</span>
+      </div>
+      <div class="ctrl-row"><b id="vopacity">1.0</b></div>
+      <input type="range" id="opacity-slider" min="0" max="1" step="0.01" value="1">
+    </div>
+
+    <div id="manual-light-ctrls">
+      <div class="ctrl">
+        <div class="ctrl-row"><span>Light Intensity</span><b id="vli">3.0</b></div>
+        <input type="range" id="li" min="0" max="8" step="0.1" value="3">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-row"><span>Light X</span><b id="vlx">45</b></div>
+        <input type="range" id="lx" min="-180" max="180" step="1" value="45">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-row"><span>Light Y</span><b id="vly">45</b></div>
+        <input type="range" id="ly" min="-180" max="180" step="1" value="45">
+      </div>
+    </div>
+    <div id="hdri-intensity-ctrl" style="display:none">
+      <div class="ctrl">
+        <div class="ctrl-row"><span>HDRI Intensity</span><b id="vhdrii">2.0</b></div>
+        <input type="range" id="hdri-intensity" min="0.1" max="6" step="0.1" value="2">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-row"><span>Exposure</span><b id="vexp">2.0</b></div>
+        <input type="range" id="exposure" min="0.5" max="5" step="0.1" value="2">
+      </div>
+    </div>
+  </div>
+  <div style="padding:12px 18px;font-size:10px;color:#475569;line-height:1.9;margin-top:auto">
+    Left drag: Rotate &nbsp;|&nbsp; Right drag: Pan &nbsp;|&nbsp; Scroll: Zoom
+  </div>
+</div>
+<div id="canvas-wrap">
+  <div id="toolbar">
+    <!-- 2D / 3D mode -->
+    <div class="tb-group">
+      <button id="btn-3d" class="active">3D</button>
+      <button id="btn-2d">2D</button>
+    </div>
+    <!-- Shape picker -->
+    <div class="tb-select-wrap" id="tb-shape-wrap">
+      <span>Shape</span>
+      <select id="shape">
+        <option value="plane">Plane</option>
+        <option value="sphere">Sphere</option>
+        <option value="cube">Cube</option>
+        <option value="cylinder">Cylinder</option>
+      </select>
+    </div>
+    <!-- Lighting mode + HDRI preset -->
+    <div class="tb-group">
+      <button id="btn-light-manual" class="active">Manual Light</button>
+      <button id="btn-light-hdri">HDRI</button>
+    </div>
+    <div class="tb-select-wrap" id="tb-hdri-wrap" style="display:none">
+      <span>HDRI</span>
+      <select id="hdri">
+        <option value="studio_small_08_1k.hdr">Studio</option>
+        <option value="venice_sunset_1k.hdr">Venice Sunset</option>
+        <option value="forest_slope_1k.hdr">Forest</option>
+        <option value="industrial_sunset_puresky_1k.hdr">Industrial Sky</option>
+        <option value="overcast_soil_puresky_1k.hdr">Overcast</option>
+      </select>
+    </div>
+  </div>
+  <div id="view-3d">
+    <div id="loading"><div class="spinner"></div><p id="load-txt">Loading 3D engine...</p></div>
+    <div id="canvas-hint">Load a texture and click Generate to preview it in 3D</div>
+  </div>
+  <div id="view-2d">
+    <div class="map-card" id="card-albedo"><div class="map-card-title">Albedo</div><div class="placeholder">—</div></div>
+    <div class="map-card" id="card-normal"><div class="map-card-title">Normal</div><div class="placeholder">—</div></div>
+    <div class="map-card" id="card-roughness"><div class="map-card-title">Roughness</div><div class="placeholder">—</div></div>
+    <div class="map-card" id="card-ao"><div class="map-card-title">Ambient Occlusion</div><div class="placeholder">—</div></div>
+    <div class="map-card" id="card-tile-test" style="grid-column:1/-1">
+      <div class="map-card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Tiling Test (3×3)</span>
+        <span style="font-size:10px;color:#475569;font-weight:400">Verify seamless edges — no visible seams or cross patterns</span>
+      </div>
+      <div class="placeholder" style="height:200px">—</div>
+    </div>
+  </div>
+</div>
+<div id="seamless-modal">
+  <div id="seamless-modal-box">
+    <div>
+      <h2>Seamless Preview — Seam Blend Zone</h2>
+      <p>The blue overlay shows the area that will be blended. Wider = smoother seam, but more texture detail is averaged. Adjust and click Apply.</p>
+    </div>
+    <div id="sm-canvas-wrap">
+      <canvas id="sm-canvas"></canvas>
+      <div id="sm-ov-h">
+        <span class="sm-label" id="sm-label-h">BLEND ZONE</span>
+      </div>
+      <div id="sm-ov-v">
+        <span class="sm-label" id="sm-label-v">BLEND ZONE</span>
+      </div>
+    </div>
+    <div id="sm-footer">
+      <div class="ctrl" style="flex:1;margin:0">
+        <div class="ctrl-row"><span style="font-size:12px;color:#94a3b8">Blend Width</span><b id="sm-vblend" style="color:#4f8ef7">25%</b></div>
+        <input type="range" id="sm-blend-slider" min="1" max="50" step="1" value="25" style="width:100%;accent-color:#4f8ef7;cursor:pointer">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button id="btn-sm-cancel">Cancel</button>
+        <button id="btn-sm-apply">Apply</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+
+// ── Three.js setup ────────────────────────────────────────────────────
+const wrap = document.getElementById('view-3d');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdce0e5);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(0, 3, 5);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+wrap.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.12;
+controls.minDistance = 1;
+controls.maxDistance = 20;
+controls.zoomSpeed = 0.8;
+
+scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+const dirLight = new THREE.DirectionalLight(0xffffff, 3.0);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.bias = -0.001;
+scene.add(dirLight);
+const rim = new THREE.DirectionalLight(0xddeeff, 1.0);
+rim.position.set(-5, 5, -5);
+scene.add(rim);
+const fill = new THREE.DirectionalLight(0xffffff, 0.6);
+fill.position.set(0, -5, 3);
+scene.add(fill);
+
+// Render-on-demand — stops completely when controls settle
+let needsRender = true;
+let dampingFrames = 0; // count down frames needed for damping to finish
+function requestRender(frames = 1) { needsRender = true; dampingFrames = Math.max(dampingFrames, frames); }
+controls.addEventListener('start', () => requestRender(60));  // while dragging
+controls.addEventListener('change', () => requestRender(8));  // each micro-move + a few settle frames
+controls.addEventListener('end', () => requestRender(20));    // let damping finish then stop
+
+function resize() {
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  if (!w || !h) return;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  requestRender(2);
+}
+resize();
+window.addEventListener('resize', resize);
+
+renderer.setAnimationLoop(() => {
+  if (dampingFrames > 0) { controls.update(); dampingFrames--; needsRender = true; }
+  if (!needsRender) return;
+  needsRender = false;
+  renderer.render(scene, camera);
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) requestRender(); });
+
+const hdriBase = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/';
+let currentHdr = null;
+let lightingMode = 'manual'; // 'manual' | 'hdri'
+
+function setLightingMode(mode) {
+  lightingMode = mode;
+  if (mode === 'hdri') {
+    dirLight.visible = false;
+    rim.visible = false;
+    fill.visible = false;
+    // Boost exposure for HDRI mode so it's as bright as manual lights
+    renderer.toneMappingExposure = 2.0;
+    mat.envMapIntensity = parseFloat(document.getElementById('hdri-intensity').value) || 2.0;
+    mat.needsUpdate = true;
+    loadHDRI(document.getElementById('hdri').value);
+    document.getElementById('tb-hdri-wrap').style.display = '';
+    document.getElementById('hdri-intensity-ctrl').style.display = '';
+    document.getElementById('manual-light-ctrls').style.display = 'none';
+    document.getElementById('btn-light-hdri').classList.add('active');
+    document.getElementById('btn-light-manual').classList.remove('active');
+  } else {
+    dirLight.visible = true;
+    rim.visible = true;
+    fill.visible = true;
+    renderer.toneMappingExposure = 1.2;
+    mat.envMapIntensity = 0;
+    mat.needsUpdate = true;
+    if (currentHdr) { currentHdr.dispose(); currentHdr = null; }
+    scene.environment = null;
+    scene.background = new THREE.Color(0xdce0e5);
+    document.getElementById('tb-hdri-wrap').style.display = 'none';
+    document.getElementById('hdri-intensity-ctrl').style.display = 'none';
+    document.getElementById('manual-light-ctrls').style.display = '';
+    document.getElementById('btn-light-manual').classList.add('active');
+    document.getElementById('btn-light-hdri').classList.remove('active');
+    requestRender(4);
+  }
+}
+
+function loadHDRI(filename) {
+  new RGBELoader().load(hdriBase + filename, hdr => {
+    hdr.mapping = THREE.EquirectangularReflectionMapping;
+    if (currentHdr) currentHdr.dispose();
+    currentHdr = hdr;
+    scene.environment = hdr;
+    scene.background  = hdr;   // show HDRI as background too
+    requestRender(4);
+  });
+}
+
+// Start in manual mode (no HDRI load on init)
+dirLight.visible = true; rim.visible = true;
+document.getElementById('loading').style.opacity = '0';
+setTimeout(() => { document.getElementById('loading').style.display = 'none'; }, 400);
+
+const mat = new THREE.MeshStandardMaterial({
+  color: 0xffffff, roughness: 0.6, metalness: 0.0,
+  side: THREE.DoubleSide,
+  transparent: true, opacity: 1.0,
+});
+let mesh = null;
+
+function buildShape(type) {
+  if (mesh) { scene.remove(mesh); mesh.geometry.dispose(); }
+  let geo;
+  if      (type === 'sphere')   geo = new THREE.SphereGeometry(2, 64, 64);
+  else if (type === 'cube')     geo = new THREE.BoxGeometry(3, 3, 3, 32, 32, 32);
+  else if (type === 'cylinder') geo = new THREE.CylinderGeometry(1.5, 1.5, 3, 64, 16);
+  else { geo = new THREE.PlaneGeometry(6, 6, 64, 64); geo.rotateX(-Math.PI / 2); }
+  if (!geo.attributes.uv2)
+    geo.setAttribute('uv2', new THREE.BufferAttribute(geo.attributes.uv.array.slice(), 2));
+  mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = mesh.receiveShadow = true;
+  scene.add(mesh);
+  camera.position.set(0, type === 'plane' ? 4 : 2, type === 'plane' ? 4 : 6);
+  controls.target.set(0, 0, 0);
+  controls.update();
+  requestRender();
+}
+buildShape('plane');
+
+function setLight(x, y) {
+  dirLight.position.setFromSphericalCoords(10, THREE.MathUtils.degToRad(90 - y), THREE.MathUtils.degToRad(x));
+  requestRender();
+}
+setLight(45, 45);
+
+const texLoader = new THREE.TextureLoader();
+function disposeSlot(prop) {
+  if (mat[prop] && mat[prop].isTexture) { mat[prop].dispose(); mat[prop] = null; }
+}
+
+function applyMaps(maps) {
+  const dotMap = { albedo:'alb', normal:'nrm', roughness:'rgh', ao:'ao' };
+  const keys = Object.keys(propMap);
+  let loaded = 0;
+
+  keys.forEach(key => {
+    if (!maps[key]) { loaded++; return; }
+    disposeSlot(propMap[key]);
+    texLoader.load(maps[key], tex => {
+      if (key === 'albedo') tex.colorSpace = THREE.SRGBColorSpace;
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      const t = parseFloat(document.getElementById('tile').value) || 1;
+      tex.repeat.set(t, t);
+      loadedMaps[key] = tex;
+      const togBtn = document.getElementById('tog-' + key);
+      if (!togBtn || togBtn.classList.contains('active')) mat[propMap[key]] = tex;
+      mat.needsUpdate = true;
+      document.getElementById('d-' + dotMap[key])?.classList.add('ok');
+      requestRender(4);
+      if (++loaded === keys.length) { mat.needsUpdate = true; requestRender(8); }
+    });
+  });
+
+  mat.roughness = 1.0;
+  mat.color.set(0xffffff);
+  mat.envMapIntensity = (lightingMode === 'hdri')
+    ? (parseFloat(document.getElementById('hdri-intensity').value) || 2.0)
+    : 0;
+  mat.needsUpdate = true;
+  requestRender(4);
+}
+
+function populate2D(maps) {
+  const labels = { albedo:'Albedo', normal:'Normal', roughness:'Roughness', ao:'Ambient Occlusion' };
+  Object.keys(labels).forEach(key => {
+    const card = document.getElementById('card-' + key);
+    if (!card || !maps[key]) return;
+    const fname = key + '.png';
+    card.innerHTML =
+      `<div class="map-card-title">
+        <span>${labels[key]}</span>
+        <a class="btn-dl" href="${maps[key]}" download="${fname}">&#8595; Save</a>
+      </div>
+      <img src="${maps[key]}" alt="${labels[key]}">`;
+  });
+  if (maps.albedo) {
+    const card = document.getElementById('card-tile-test');
+    card.innerHTML =
+      `<div class="map-card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Tiling Test (3×3)</span>
+        <span style="font-size:10px;color:#475569;font-weight:400">Check for seams or cross patterns</span>
+      </div>
+      <div id="tile-test-canvas" style="background-image:url('${maps.albedo}')"></div>`;
+  }
+}
+
+// ── Map channel toggles ───────────────────────────────────────────────
+// Stores the actual loaded textures so we can swap them in/out
+const loadedMaps = {};
+const propMap = { albedo:'map', normal:'normalMap', roughness:'roughnessMap', ao:'aoMap' };
+
+document.querySelectorAll('.map-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.map;
+    const active = btn.classList.toggle('active');
+    if (active) {
+      // restore texture if we have it loaded
+      if (loadedMaps[key]) { mat[propMap[key]] = loadedMaps[key]; mat.needsUpdate = true; requestRender(4); }
+    } else {
+      // detach texture (null = default behaviour: use material color/value)
+      mat[propMap[key]] = null; mat.needsUpdate = true; requestRender(4);
+    }
+  });
+});
+function sl(id, vid, decimals, cb) {
+  const el = document.getElementById(id), vl = document.getElementById(vid);
+  if (!el || !vl) return;
+  el.addEventListener('input', () => { const v = parseFloat(el.value); vl.textContent = v.toFixed(decimals); cb(v); });
+}
+sl('tile','vtile',1, v => { ['map','normalMap','roughnessMap','aoMap'].forEach(k => { if(mat[k]){mat[k].repeat.set(v,v);} }); requestRender(); });
+sl('nsc', 'vnsc', 1, v => { if(mat.normalScale) mat.normalScale.set(v,v); requestRender(); });
+sl('aoi', 'vaoi', 1, v => { mat.aoMapIntensity=v; mat.needsUpdate=true; requestRender(); });
+sl('li',  'vli',  1, v => { dirLight.intensity=v; requestRender(); });
+sl('lx',  'vlx',  0, () => setLight(+document.getElementById('lx').value, +document.getElementById('ly').value));
+sl('ly',  'vly',  0, () => setLight(+document.getElementById('lx').value, +document.getElementById('ly').value));
+sl('hdri-intensity','vhdrii',1, v => { mat.envMapIntensity=v; mat.needsUpdate=true; requestRender(); });
+sl('exposure',      'vexp',  1, v => { renderer.toneMappingExposure=v; requestRender(); });
+sl('opacity-slider','vopacity',2, v => {
+  mat.opacity = v;
+  mat.transparent = v < 1.0;
+  mat.needsUpdate = true;
+  requestRender(4);
+});
+document.getElementById('hdri').addEventListener('change', e => { if (lightingMode === 'hdri') loadHDRI(e.target.value); });
+document.getElementById('shape').addEventListener('change', e => buildShape(e.target.value));
+document.getElementById('btn-light-manual').onclick = () => setLightingMode('manual');
+document.getElementById('btn-light-hdri').onclick   = () => setLightingMode('hdri');
+
+// ── 2D / 3D toggle ────────────────────────────────────────────────────
+const view3d = document.getElementById('view-3d');
+const view2d = document.getElementById('view-2d');
+const sec3d  = document.getElementById('section-3d-controls');
+
+function setViewMode(mode) {
+  if (mode === '3d') {
+    view3d.classList.remove('hidden');
+    view2d.classList.remove('visible');
+    sec3d.style.display = '';
+    document.getElementById('btn-3d').classList.add('active');
+    document.getElementById('btn-2d').classList.remove('active');
+    document.getElementById('tb-shape-wrap').style.display = '';
+    document.getElementById('tb-hdri-wrap').style.display = lightingMode === 'hdri' ? '' : 'none';
+    document.getElementById('btn-light-manual').parentElement.style.display = '';
+    window.dispatchEvent(new Event('resize'));
+  } else {
+    view3d.classList.add('hidden');
+    view2d.classList.add('visible');
+    sec3d.style.display = 'none';
+    document.getElementById('btn-2d').classList.add('active');
+    document.getElementById('btn-3d').classList.remove('active');
+    document.getElementById('tb-shape-wrap').style.display = 'none';
+    document.getElementById('tb-hdri-wrap').style.display = 'none';
+    document.getElementById('btn-light-manual').parentElement.style.display = 'none';
+  }
+}
+document.getElementById('btn-3d').onclick = () => setViewMode('3d');
+document.getElementById('btn-2d').onclick = () => setViewMode('2d');
+
+// ── File input & generation ───────────────────────────────────────────
+let selectedPath = null;
+const dropZone  = document.getElementById('drop-zone');
+const thumb     = document.getElementById('preview-thumb');
+const hint      = dropZone.querySelector('.hint');
+const fileInput = document.getElementById('file-input');
+const fileLabel = document.getElementById('file-name');
+const genBtn    = document.getElementById('btn-generate');
+const statusEl  = document.getElementById('status');
+
+function setStatus(msg, cls) { statusEl.textContent = msg; statusEl.className = cls || ''; }
+
+function loadFile(file) {
+  thumbObjectURL = URL.createObjectURL(file);
+  thumb.src = thumbObjectURL;
+  thumb.style.display = 'block';
+  hint.style.display = 'none';
+  fileLabel.textContent = file.name;
+  selectedPath = null;
+  genBtn.disabled = true;
+  setStatus('', '');
+  resetPills();
+  document.getElementById('progress-wrap').style.display = 'none';
+  // Show preview button if seamless is checked
+  document.getElementById('btn-sm-preview').style.display =
+    document.getElementById('chk-seamless').checked ? '' : 'none';
+  const fd = new FormData();
+  fd.append('file', file);
+  fetch('/upload', { method:'POST', body:fd })
+    .then(r => r.json())
+    .then(d => {
+      selectedPath = d.path;
+      genBtn.disabled = false;
+      setStatus('Ready — click Generate Maps', '');
+    })
+    .catch(e => { setStatus('Upload error: '+e.message, 'err'); genBtn.disabled = false; });
+}
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag'); if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if(fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+// pill helpers
+const PILL_MAP = { albedo:'pill-alb', normal:'pill-nrm', roughness:'pill-rgh', ao:'pill-ao' };
+const STEP_PILL = {
+  'Saving albedo…':            'pill-alb',
+  'Generating normal map…':    'pill-nrm',
+  'Generating roughness map…': 'pill-rgh',
+  'Generating AO map…':        'pill-ao',
+};
+
+function resetPills() {
+  Object.values(PILL_MAP).forEach(id => {
+    const el = document.getElementById(id);
+    el.className = 'map-pill';
+    el.querySelector('.pill-icon').textContent = '—';
+  });
+  ['alb','nrm','rgh','ao'].forEach(k => {
+    const d = document.getElementById('d-'+k);
+    if (d) d.classList.remove('ok');
+  });
+}
+
+function setPillWorking(pillId) {
+  if (!pillId) return;
+  const el = document.getElementById(pillId);
+  el.classList.add('working');
+  el.querySelector('.pill-icon').textContent = '💫';
+}
+
+function setPillDone(pillId) {
+  if (!pillId) return;
+  const el = document.getElementById(pillId);
+  el.classList.remove('working');
+  el.classList.add('done');
+  el.querySelector('.pill-icon').textContent = '✔';
+}
+
+genBtn.addEventListener('click', async () => {
+  if (!selectedPath) return;
+  genBtn.disabled = true;
+  resetPills();
+
+  // show progress bar
+  const pWrap = document.getElementById('progress-wrap');
+  const pBar  = document.getElementById('progress-bar');
+  const pLbl  = document.getElementById('progress-label');
+  pWrap.style.display = 'block';
+  pBar.style.width = '0%';
+  pLbl.textContent = 'Starting…';
+  setStatus('Generating…', '');
+
+  const body = JSON.stringify({
+    path:            selectedPath,
+    normal_strength: +document.getElementById('ns').value,
+    roughness_alpha: +document.getElementById('ra').value,
+    roughness_beta:  +document.getElementById('rb').value,
+    ao_alpha:        +document.getElementById('aogen').value,
+    make_seamless:   document.getElementById('chk-seamless').checked,
+    seamless_blend:  +document.getElementById('blend-ratio').value,
+    work_size:       +(document.getElementById('work-size')?.value || 512),
+  });
+
+  let lastPill = null;
+
+  try {
+    const res = await fetch('/generate_stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body
+    });
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const parts = buf.split('\n\n');
+      buf = parts.pop();
+
+      for (const part of parts) {
+        const evMatch  = part.match(/^event: (\w+)/m);
+        const datMatch = part.match(/^data: (.+)/m);
+        if (!evMatch || !datMatch) continue;
+        const ev   = evMatch[1];
+        const data = JSON.parse(datMatch[1]);
+
+        if (ev === 'progress') {
+          const pct = Math.round((data.step / data.total) * 100);
+          pBar.style.width = pct + '%';
+          pLbl.textContent = data.label;
+          setStatus(data.label, '');
+          // mark previous pill done, current working
+          if (lastPill) setPillDone(lastPill);
+          const thisPill = STEP_PILL[data.label] || null;
+          if (thisPill) { setPillWorking(thisPill); lastPill = thisPill; }
+          // seamless has no pill — just show progress bar
+        }
+
+        if (ev === 'done') {
+          if (lastPill) setPillDone(lastPill);
+          // mark all pills done
+          Object.values(PILL_MAP).forEach(id => setPillDone(id));
+          pBar.style.width = '100%';
+          pLbl.textContent = '✔ Complete';
+          applyMaps(data.maps);
+          populate2D(data.maps);
+          setStatus('Done: ' + data.mat_name, 'ok');
+          document.getElementById('canvas-hint').style.display = 'none';
+          const dlBtn = document.getElementById('btn-dl-all');
+          dlBtn.disabled = false;
+          dlBtn.style.borderColor = '#4f8ef7';
+          dlBtn.style.color = '#4f8ef7';
+          dlBtn.onclick = () => { window.location.href = '/download_zip?mat=' + encodeURIComponent(data.mat_name); };
+          setTimeout(() => { pWrap.style.display = 'none'; }, 2000);
+        }
+
+        if (ev === 'error') {
+          pLbl.textContent = '✖ ' + data.message;
+          pBar.style.background = '#ef4444';
+          setStatus('Error: ' + data.message, 'err');
+        }
+      }
+    }
+  } catch(e) {
+    setStatus('Error: ' + e.message, 'err');
+    pLbl.textContent = '✖ ' + e.message;
+  }
+
+  genBtn.disabled = false;
+});
+
+// Generation slider labels
+[['ns','vns',0],['ra','vra',2],['rb','vrb',0],['aogen','vaogen',1]].forEach(([id,vid,d]) => {
+  const el=document.getElementById(id), vl=document.getElementById(vid);
+  if(el&&vl) el.addEventListener('input', ()=> vl.textContent=parseFloat(el.value).toFixed(d));
+});
+
+// Seamless toggle
+const chkSeamless = document.getElementById('chk-seamless');
+const seamlessOpts = document.getElementById('seamless-opts');
+chkSeamless.addEventListener('change', () => {
+  seamlessOpts.style.display = chkSeamless.checked ? '' : 'none';
+  document.getElementById('btn-sm-preview').style.display = (chkSeamless.checked && thumbObjectURL) ? '' : 'none';
+});
+const blendEl = document.getElementById('blend-ratio');
+const blendVl = document.getElementById('vblend');
+blendEl.addEventListener('input', () => {
+  blendVl.textContent = parseFloat(blendEl.value).toFixed(2);
+  smUpdateOverlay(); // keep modal in sync if open
+});
+
+// ── Seamless preview modal ────────────────────────────────────────────
+const smModal    = document.getElementById('seamless-modal');
+const smCanvas   = document.getElementById('sm-canvas');
+const smCtx      = smCanvas.getContext('2d');
+const smBlendSl  = document.getElementById('sm-blend-slider');
+const smBlendVl  = document.getElementById('sm-vblend');
+const smOvH      = document.getElementById('sm-ov-h');
+const smOvV      = document.getElementById('sm-ov-v');
+let thumbObjectURL = null;   // set when image is loaded
+let smImage = null;          // Image element for modal canvas
+
+function smDraw() {
+  if (!smImage) return;
+  const sz = smCanvas.width;
+  const half = sz / 2;
+  smCtx.clearRect(0, 0, sz, sz);
+  smCtx.drawImage(smImage, 0,    0,    half, half);
+  smCtx.drawImage(smImage, half, 0,    half, half);
+  smCtx.drawImage(smImage, 0,    half, half, half);
+  smCtx.drawImage(smImage, half, half, half, half);
+  // Tile grid lines
+  smCtx.strokeStyle = 'rgba(255,255,255,0.3)';
+  smCtx.setLineDash([4, 4]);
+  smCtx.beginPath();
+  smCtx.moveTo(half, 0);   smCtx.lineTo(half, sz);
+  smCtx.moveTo(0, half);   smCtx.lineTo(sz, half);
+  smCtx.stroke();
+  smCtx.setLineDash([]);
+}
+
+function smUpdateOverlay() {
+  if (!smModal.classList.contains('open')) return;
+  const pct = parseInt(smBlendSl.value);
+  // overlay height/width as % of the half-canvas (seam is at 50%)
+  smOvH.style.height = (pct / 100 * 100) + '%';  // pct of total canvas = pct% height
+  smOvV.style.width  = (pct / 100 * 100) + '%';
+  smBlendVl.textContent = pct + '%';
+  // sync back to sidebar slider (convert pct 10-40 → ratio 0.10-0.40)
+  const ratio = pct / 100;
+  blendEl.value = ratio;
+  blendVl.textContent = ratio.toFixed(2);
+}
+
+function smOpen() {
+  if (!thumbObjectURL) return;
+  const wrap = document.getElementById('sm-canvas-wrap');
+  // Use the actual rendered size of the wrap div
+  const SIZE = Math.min(wrap.clientWidth || 560, wrap.clientHeight || 560);
+  smCanvas.width  = SIZE || 540;
+  smCanvas.height = SIZE || 540;
+  smImage = new Image();
+  smImage.onload = () => { smDraw(); smUpdateOverlay(); };
+  smImage.src = thumbObjectURL;
+  // sync slider from sidebar
+  smBlendSl.value = Math.round(parseFloat(blendEl.value) * 100);
+  smModal.classList.add('open');
+  // redraw after modal is visible so dimensions are correct
+  requestAnimationFrame(() => {
+    const w2 = wrap.clientWidth;
+    const h2 = wrap.clientHeight;
+    const s2 = Math.min(w2, h2);
+    smCanvas.width  = s2;
+    smCanvas.height = s2;
+    smDraw();
+    smUpdateOverlay();
+  });
+}
+
+smBlendSl.addEventListener('input', smUpdateOverlay);
+document.getElementById('btn-sm-preview').addEventListener('click', smOpen);
+document.getElementById('btn-sm-cancel').addEventListener('click', () => smModal.classList.remove('open'));
+document.getElementById('btn-sm-apply').addEventListener('click', () => {
+  smModal.classList.remove('open');
+  setStatus('Blend width set to ' + blendEl.value, '');
+});
+// Click backdrop to close
+smModal.addEventListener('click', e => { if (e.target === smModal) smModal.classList.remove('open'); });
+</script>
+</body>
+</html>
