@@ -57,7 +57,8 @@ select:focus{border-color:#702af8}
 .ctx-item{display:flex;align-items:center;gap:10px;padding:7px 12px;border-radius:7px;font-size:11px;color:#c4b5fd;cursor:pointer;transition:.1s;white-space:nowrap}
 .ctx-item:hover{background:rgba(112,42,248,.15);color:#fff}
 .ctx-item.active{background:rgba(112,42,248,.2);color:#fff}
-.ctx-item .ctx-icon{font-size:14px;width:18px;text-align:center}
+.ctx-item .ctx-icon{font-size:14px;width:18px;text-align:center;display:flex;align-items:center;justify-content:center}
+.ctx-item .ctx-icon svg{width:14px;height:14px;stroke:currentColor}
 .ctx-divider{height:1px;background:#2d2f3d;margin:3px 8px}
 .tb-group{display:flex;background:rgba(14,14,20,0.94);border-radius:8px;border:1px solid rgba(255,255,255,.08);overflow:hidden;backdrop-filter:blur(10px)}
 .tb-group button{padding:5px 12px;font-size:10px;font-weight:600;border:none;background:transparent;color:#4a4f6a;cursor:pointer;transition:.15s;white-space:nowrap}
@@ -97,6 +98,41 @@ select:focus{border-color:#702af8}
 .map-toggle:hover:not(.active){border-color:#4a4f6a;color:#8892a4}
 #btn-sm-preview{width:100%;padding:7px;margin-bottom:6px;background:transparent;border:1px solid #702af8;color:#a78bfa;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s}
 #btn-sm-preview:hover{background:rgba(112,42,248,.12)}
+/* Pipeline / Layers */
+.pipe-tools{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.pipe-tool-btn{flex:1;min-width:60px;padding:6px 4px;font-size:9px;font-weight:700;background:#111218;border:1px solid #2d2f3d;color:#6b7280;border-radius:6px;cursor:pointer;text-align:center;transition:.15s}
+.pipe-tool-btn:hover{border-color:#702af8;color:#a78bfa}
+.pipe-tool-btn.busy{border-color:#702af8;color:#a78bfa;background:rgba(112,42,248,.1)}
+/* Layer list */
+#layer-list{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+.layer-row{display:flex;align-items:center;gap:6px;padding:6px 8px;background:#111218;border-radius:7px;border:1px solid #2d2f3d;transition:.2s}
+.layer-row.disabled{opacity:.4}
+.layer-eye{width:16px;height:16px;cursor:pointer;color:#4a4f6a;flex-shrink:0;transition:.15s}
+.layer-eye:hover{color:#a78bfa}
+.layer-eye.on{color:#702af8}
+.layer-name{flex:1;font-size:10px;font-weight:600;color:#c4b5fd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.layer-params{font-size:9px;color:#4a4f6a}
+.layer-btn{width:20px;height:20px;border:none;background:transparent;cursor:pointer;color:#4a4f6a;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:.15s;flex-shrink:0}
+.layer-btn:hover{color:#e2e8f0;background:rgba(255,255,255,.06)}
+/* Param edit popover */
+.layer-edit-wrap{padding:8px;background:#111218;border:1px solid #2d2f3d;border-radius:8px;margin-top:4px;display:none}
+.layer-edit-wrap.open{display:block}
+/* Compare modal */
+#compare-modal{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.88);backdrop-filter:blur(6px);align-items:center;justify-content:center}
+#compare-modal.open{display:flex}
+#compare-box{background:#1a1b22;border:1px solid #2d2f3d;border-radius:16px;width:min(800px,95vw);height:min(600px,90vh);display:flex;flex-direction:column;overflow:hidden}
+#compare-header{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2d2f3d}
+#compare-header span{font-size:11px;font-weight:700;color:#fff}
+#compare-close{background:transparent;border:none;color:#4a4f6a;cursor:pointer;font-size:16px;line-height:1}
+#compare-close:hover{color:#fff}
+#compare-viewport{flex:1;position:relative;overflow:hidden;background:#0e0e14;cursor:col-resize}
+#compare-before,#compare-after{position:absolute;inset:0;background-size:contain;background-repeat:no-repeat;background-position:center}
+#compare-after{clip-path:inset(0 50% 0 0)}
+#compare-divider{position:absolute;top:0;bottom:0;left:50%;width:2px;background:#702af8;transform:translateX(-50%);cursor:col-resize}
+#compare-handle{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:32px;height:32px;border-radius:50%;background:#702af8;border:2px solid #fff;cursor:col-resize;display:flex;align-items:center;justify-content:center}
+#compare-labels{position:absolute;bottom:10px;width:100%;display:flex;justify-content:space-between;padding:0 14px;pointer-events:none}
+#compare-labels span{font-size:9px;font-weight:700;color:rgba(255,255,255,.6);background:rgba(0,0,0,.5);padding:2px 7px;border-radius:4px}
+#compare-footer{padding:10px 16px;font-size:10px;color:#4a4f6a;text-align:center;border-top:1px solid #2d2f3d}
 #btn-seamless-only{width:100%;padding:7px;margin-bottom:6px;background:transparent;border:1px solid #702af8;color:#a78bfa;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s}
 #btn-seamless-only:hover{background:rgba(112,42,248,.12)}
 #btn-seamless-only:disabled{border-color:#2d2f3d;color:#3a3f5a;cursor:not-allowed}
@@ -162,6 +198,53 @@ select:focus{border-color:#702af8}
     <button id="btn-generate" disabled>Generate Maps</button>
     <div id="status">Load a texture to begin</div>
   </div>
+  <!-- ── Processing Pipeline ─────────────────────────────────────── -->
+  <div class="section" id="section-pipeline">
+    <div class="sec-title">Layers</div>
+    <!-- Tool buttons -->
+    <div class="pipe-tools">
+      <button class="pipe-tool-btn" id="ptool-denoise" data-op="denoise" disabled>Denoise<br><span style="font-size:8px;color:#702af8">AI</span></button>
+      <button class="pipe-tool-btn" id="ptool-sharpen" data-op="sharpen" disabled>Sharpen</button>
+      <button class="pipe-tool-btn" id="ptool-normalize" data-op="normalize" disabled>Normalize</button>
+      <button class="pipe-tool-btn" id="ptool-upscale" data-op="upscale" disabled>Upscale 2×<br><span style="font-size:8px;color:#702af8">AI</span></button>
+    </div>
+    <!-- Param editor (shared popover, shown below active tool) -->
+    <div id="pipe-param-editor" class="layer-edit-wrap">
+      <div id="ppe-inner"></div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button id="ppe-apply" style="flex:1;padding:7px;background:#702af8;color:#fff;border:none;border-radius:7px;font-size:10px;font-weight:700;cursor:pointer">Apply Layer</button>
+        <button id="ppe-cancel" style="padding:7px 12px;background:transparent;color:#4a4f6a;border:1px solid #2d2f3d;border-radius:7px;font-size:10px;cursor:pointer">Cancel</button>
+      </div>
+    </div>
+    <!-- Layer list (Photoshop style, top = most recent) -->
+    <div id="layer-list">
+      <div class="layer-row" id="layer-original">
+        <svg class="layer-eye on" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg>
+        <span class="layer-name">Original</span>
+        <span class="layer-params" style="color:#3a3f5a">base</span>
+      </div>
+    </div>
+    <button id="btn-reset-pipeline" style="width:100%;padding:7px;background:transparent;border:1px solid #2d2f3d;color:#4a4f6a;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s;display:none">↩ Flatten to Original</button>
+  </div>
+  <!-- Compare modal -->
+  <div id="compare-modal">
+    <div id="compare-box">
+      <div id="compare-header">
+        <span id="compare-title">Before / After</span>
+        <button id="compare-close">✕</button>
+      </div>
+      <div id="compare-viewport">
+        <div id="compare-before"></div>
+        <div id="compare-after"></div>
+        <div id="compare-divider"></div>
+        <div id="compare-handle">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="1.5"><line x1="4" y1="2" x2="4" y2="10"/><line x1="8" y1="2" x2="8" y2="10"/></svg>
+        </div>
+        <div id="compare-labels"><span>BEFORE</span><span>AFTER</span></div>
+      </div>
+      <div id="compare-footer">Drag the divider to compare · Drag anywhere on the image</div>
+    </div>
+  </div>
   <div class="section">
     <div class="sec-title">Output Maps</div>
     <div class="map-pill" id="pill-alb"><span>Albedo</span><span class="pill-icon">—</span></div>
@@ -194,8 +277,8 @@ select:focus{border-color:#702af8}
       <input type="range" id="nsc" min="0" max="3" step="0.1" value="1">
     </div>
     <div class="ctrl">
-      <div class="ctrl-row"><span>AO Intensity (preview)</span><b id="vaoi">0.7</b></div>
-      <input type="range" id="aoi" min="0" max="2" step="0.1" value="0.7">
+      <div class="ctrl-row"><span>AO Intensity (preview)</span><b id="vaoi">0.6</b></div>
+      <input type="range" id="aoi" min="0" max="2" step="0.1" value="0.6">
     </div>
     <div class="ctrl">
       <div class="ctrl-row"><span>Opacity</span><span style="font-size:10px;color:#475569">glass/refraction</span></div>
@@ -218,12 +301,12 @@ select:focus{border-color:#702af8}
     </div>
     <div id="hdri-intensity-ctrl" style="opacity:0.35;pointer-events:none">
       <div class="ctrl">
-        <div class="ctrl-row"><span>HDRI Intensity</span><b id="vhdrii">2.0</b></div>
-        <input type="range" id="hdri-intensity" min="0.1" max="6" step="0.1" value="2">
+        <div class="ctrl-row"><span>HDRI Intensity</span><b id="vhdrii">0.6</b></div>
+        <input type="range" id="hdri-intensity" min="0.1" max="6" step="0.1" value="0.6">
       </div>
       <div class="ctrl">
-        <div class="ctrl-row"><span>Exposure</span><b id="vexp">2.0</b></div>
-        <input type="range" id="exposure" min="0.5" max="5" step="0.1" value="2">
+        <div class="ctrl-row"><span>Exposure</span><b id="vexp">0.9</b></div>
+        <input type="range" id="exposure" min="0.5" max="5" step="0.1" value="0.9">
       </div>
     </div>
   </div>
@@ -240,27 +323,27 @@ select:focus{border-color:#702af8}
       <button id="btn-2d">2D</button>
     </div>
     <!-- Shape: single icon, right-click to pick -->
-    <button class="tb-btn" id="tb-shape-wrap" title="Right-click to change shape">&#9711;</button>
+    <button class="tb-btn" id="tb-shape-wrap" title="Right-click to change shape"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><circle cx="8" cy="8" r="6"/><ellipse cx="8" cy="8" rx="3" ry="6"/><line x1="2" y1="8" x2="14" y2="8"/></svg></button>
     <!-- Lighting: single icon, right-click to pick HDRI preset or switch mode -->
-    <button class="tb-btn" id="tb-lighting-btn" title="Right-click for lighting options">&#9788;</button>
+    <button class="tb-btn" id="tb-lighting-btn" title="Right-click for lighting options"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><circle cx="8" cy="8" r="3"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/><line x1="3" y1="3" x2="4.5" y2="4.5"/><line x1="11.5" y1="11.5" x2="13" y2="13"/><line x1="13" y1="3" x2="11.5" y2="4.5"/><line x1="4.5" y1="11.5" x2="3" y2="13"/></svg></button>
   </div>
   <!-- Shape context menu -->
   <div class="ctx-menu" id="ctx-shape">
-    <div class="ctx-item active" data-shape="sphere"><span class="ctx-icon">&#9711;</span>Sphere</div>
-    <div class="ctx-item" data-shape="plane"><span class="ctx-icon">&#9645;</span>Plane</div>
-    <div class="ctx-item" data-shape="cube"><span class="ctx-icon">&#9632;</span>Cube</div>
-    <div class="ctx-item" data-shape="cylinder"><span class="ctx-icon">&#9677;</span>Cylinder</div>
+    <div class="ctx-item active" data-shape="sphere"><span class="ctx-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><ellipse cx="8" cy="8" rx="3" ry="6"/><line x1="2" y1="8" x2="14" y2="8"/></svg></span>Sphere</div>
+    <div class="ctx-item" data-shape="plane"><span class="ctx-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="12" height="7" rx="1"/></svg></span>Plane</div>
+    <div class="ctx-item" data-shape="cube"><span class="ctx-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10.5L8 13.5L13 10.5V5.5L8 2.5L3 5.5z"/><line x1="8" y1="13.5" x2="8" y2="8"/><line x1="3" y1="5.5" x2="8" y2="8"/><line x1="13" y1="5.5" x2="8" y2="8"/></svg></span>Cube</div>
+    <div class="ctx-item" data-shape="cylinder"><span class="ctx-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="8" cy="5" rx="5" ry="2"/><ellipse cx="8" cy="11" rx="5" ry="2"/><line x1="3" y1="5" x2="3" y2="11"/><line x1="13" y1="5" x2="13" y2="11"/></svg></span>Cylinder</div>
   </div>
   <!-- Lighting context menu -->
   <div class="ctx-menu" id="ctx-lighting">
-    <div class="ctx-item active" id="ctx-manual"><span class="ctx-icon">&#9788;</span>Manual Light</div>
-    <div class="ctx-item" id="ctx-hdri"><span class="ctx-icon">&#127774;</span>HDRI</div>
+    <div class="ctx-item active" id="ctx-manual"><span class="ctx-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/><line x1="3" y1="3" x2="4.5" y2="4.5"/><line x1="11.5" y1="11.5" x2="13" y2="13"/><line x1="13" y1="3" x2="11.5" y2="4.5"/><line x1="4.5" y1="11.5" x2="3" y2="13"/></svg></span>Manual Light</div>
+    <div class="ctx-item" id="ctx-hdri"><span class="ctx-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M2 8 Q5 4 8 8 Q11 12 14 8"/><line x1="2" y1="8" x2="14" y2="8"/></svg></span>HDRI</div>
     <div class="ctx-divider"></div>
-    <div class="ctx-item ctx-hdri-opt" data-hdri="studio_small_08_1k.hdr"><span class="ctx-icon">&#128161;</span>Studio</div>
-    <div class="ctx-item ctx-hdri-opt" data-hdri="venice_sunset_1k.hdr"><span class="ctx-icon">&#127752;</span>Venice Sunset</div>
-    <div class="ctx-item ctx-hdri-opt" data-hdri="forest_slope_1k.hdr"><span class="ctx-icon">&#127807;</span>Forest</div>
-    <div class="ctx-item ctx-hdri-opt" data-hdri="industrial_sunset_puresky_1k.hdr"><span class="ctx-icon">&#127970;</span>Industrial</div>
-    <div class="ctx-item ctx-hdri-opt" data-hdri="overcast_soil_puresky_1k.hdr"><span class="ctx-icon">&#9729;</span>Overcast</div>
+    <div class="ctx-item ctx-hdri-opt" data-hdri="studio_small_08_1k.hdr"><span class="ctx-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="8" rx="1"/><circle cx="8" cy="8" r="2"/><line x1="8" y1="1" x2="8" y2="3"/></svg></span>Studio</div>
+    <div class="ctx-item ctx-hdri-opt" data-hdri="venice_sunset_1k.hdr"><span class="ctx-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 11 Q4 7 8 9 Q12 11 15 8"/><circle cx="8" cy="6" r="2.5"/></svg></span>Venice Sunset</div>
+    <div class="ctx-item ctx-hdri-opt" data-hdri="forest_slope_1k.hdr"><span class="ctx-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 13 L6 7 L8 10 L9 5 L12 13z"/></svg></span>Forest</div>
+    <div class="ctx-item ctx-hdri-opt" data-hdri="industrial_sunset_puresky_1k.hdr"><span class="ctx-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="8" width="3" height="5"/><rect x="6" y="5" width="3" height="8"/><rect x="10" y="7" width="3" height="6"/><line x1="1" y1="13" x2="15" y2="13"/></svg></span>Industrial</div>
+    <div class="ctx-item ctx-hdri-opt" data-hdri="overcast_soil_puresky_1k.hdr"><span class="ctx-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10 Q3 6 7 6 Q7 3 11 4 Q14 4 14 8 Q16 8 15 11z"/></svg></span>Overcast</div>
   </div>
   <div id="view-3d">
     <div id="loading"><div class="spinner"></div><p id="load-txt">Initialising 3D engine…</p></div>
@@ -613,6 +696,206 @@ self.onmessage = function(e) {
 };
 </script>
 
+<!-- ── Enhance Worker ────────────────────────────────────────────── -->
+<script id="enhance-worker-src" type="text/plain">
+const MODEL_CACHE  = 'pbr-models-v1';
+const ESRGAN_URL   = 'https://huggingface.co/oven-auto/real-esrgan-x2/resolve/main/realesrgan_x2.onnx';
+const ORT_CDN      = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/';
+let ortSession = null;
+
+// ── Pure JS fallbacks ────────────────────────────────────────────────
+function sharpenJS(rgba, w, h, strength) {
+  const src = new Uint8ClampedArray(rgba);
+  const out = new Uint8ClampedArray(rgba.length);
+  const k = strength;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        const get = (dx, dy) => {
+          const nx = Math.max(0, Math.min(w-1, x+dx));
+          const ny = Math.max(0, Math.min(h-1, y+dy));
+          return src[(ny*w+nx)*4+c];
+        };
+        const lap = get(-1,0)+get(1,0)+get(0,-1)+get(0,1) - 4*src[i+c];
+        out[i+c] = Math.max(0, Math.min(255, src[i+c] - k * lap));
+      }
+      out[i+3] = 255;
+    }
+  }
+  return out;
+}
+
+function normalizeJS(rgba, w, h, clip) {
+  const n = w * h;
+  const hist = [new Int32Array(256), new Int32Array(256), new Int32Array(256)];
+  for (let i = 0; i < n; i++)
+    for (let c = 0; c < 3; c++) hist[c][rgba[i*4+c]]++;
+  const out = new Uint8ClampedArray(rgba.length);
+  const clipPx = Math.round(n * clip / 100);
+  const lut = hist.map(h => {
+    let lo = 0, hi = 255, sum = 0;
+    for (let v = 0; v < 256; v++) { sum += h[v]; if (sum > clipPx) { lo = v; break; } }
+    sum = 0;
+    for (let v = 255; v >= 0; v--) { sum += h[v]; if (sum > clipPx) { hi = v; break; } }
+    return Array.from({length:256}, (_,v) => Math.max(0,Math.min(255, Math.round((v-lo)*255/(hi-lo||1)))));
+  });
+  for (let i = 0; i < n; i++) {
+    for (let c = 0; c < 3; c++) out[i*4+c] = lut[c][rgba[i*4+c]];
+    out[i*4+3] = 255;
+  }
+  return out;
+}
+
+function denoiseJS(rgba, w, h, strength) {
+  // Bilateral-style approximation: gaussian blur blended by strength
+  const sigma = strength * 2 + 0.5;
+  const r = Math.ceil(sigma * 2);
+  const kernel = [];
+  let sum = 0;
+  for (let i = -r; i <= r; i++) { const v = Math.exp(-(i*i)/(2*sigma*sigma)); kernel.push(v); sum += v; }
+  for (let i = 0; i < kernel.length; i++) kernel[i] /= sum;
+  const tmp = new Float32Array(w * h * 3);
+  const src = rgba;
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++)
+      for (let c = 0; c < 3; c++) {
+        let v = 0;
+        for (let k = -r; k <= r; k++) { const sx = Math.max(0,Math.min(w-1,x+k)); v += src[(y*w+sx)*4+c]*kernel[k+r]; }
+        tmp[(y*w+x)*3+c] = v;
+      }
+  const out = new Uint8ClampedArray(rgba.length);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++)
+      for (let c = 0; c < 3; c++) {
+        let v = 0;
+        for (let k = -r; k <= r; k++) { const sy = Math.max(0,Math.min(h-1,y+k)); v += tmp[(sy*w+x)*3+c]*kernel[k+r]; }
+        const i = (y*w+x)*4;
+        out[i+c] = Math.round(v * strength + src[i+c] * (1-strength));
+        out[i+3] = 255;
+      }
+  return out;
+}
+
+function upscaleJS(rgba, w, h) {
+  // Simple 2x bilinear — fallback when AI fails
+  const nw = w*2, nh = h*2;
+  const out = new Uint8ClampedArray(nw*nh*4);
+  for (let y = 0; y < nh; y++) {
+    for (let x = 0; x < nw; x++) {
+      const sx = x/2, sy = y/2;
+      const x0=Math.floor(sx), y0=Math.floor(sy);
+      const x1=Math.min(x0+1,w-1), y1=Math.min(y0+1,h-1);
+      const fx=sx-x0, fy=sy-y0;
+      const i=(y*nw+x)*4;
+      for (let c=0;c<4;c++) {
+        out[i+c] = Math.round(
+          rgba[(y0*w+x0)*4+c]*(1-fx)*(1-fy)+
+          rgba[(y0*w+x1)*4+c]*fx*(1-fy)+
+          rgba[(y1*w+x0)*4+c]*(1-fx)*fy+
+          rgba[(y1*w+x1)*4+c]*fx*fy
+        );
+      }
+    }
+  }
+  return { data: out, width: nw, height: nh };
+}
+
+// ── ONNX model loader (cached in Cache API) ──────────────────────────
+async function loadOrtSession() {
+  if (ortSession) return ortSession;
+  // Load ort-web WASM in worker
+  if (typeof ort === 'undefined') {
+    importScripts(ORT_CDN + 'ort.min.js');
+    ort.env.wasm.wasmPaths = ORT_CDN;
+    ort.env.wasm.numThreads = 1;
+  }
+  // Check cache
+  const cache = await caches.open(MODEL_CACHE);
+  let modelBuf;
+  const cached = await cache.match(ESRGAN_URL);
+  if (cached) {
+    modelBuf = await cached.arrayBuffer();
+  } else {
+    self.postMessage({ type: 'model_download_start' });
+    const resp = await fetch(ESRGAN_URL);
+    if (!resp.ok) throw new Error('Model fetch failed: ' + resp.status);
+    const clone = resp.clone();
+    await cache.put(ESRGAN_URL, clone);
+    modelBuf = await resp.arrayBuffer();
+    self.postMessage({ type: 'model_download_done' });
+  }
+  ortSession = await ort.InferenceSession.create(modelBuf, { executionProviders: ['wasm'] });
+  return ortSession;
+}
+
+// ── AI upscale via Real-ESRGAN (tile-based, 128px tiles) ─────────────
+async function upscaleAI(rgba, w, h) {
+  const session = await loadOrtSession();
+  const TILE = 128, PAD = 8;
+  const nw = w*2, nh = h*2;
+  const out = new Float32Array(nw*nh*3);
+  const tilesX = Math.ceil(w/TILE), tilesY = Math.ceil(h/TILE);
+  let done = 0, total = tilesX * tilesY;
+  for (let ty = 0; ty < tilesY; ty++) {
+    for (let tx = 0; tx < tilesX; tx++) {
+      const x0=Math.max(0,tx*TILE-PAD), y0=Math.max(0,ty*TILE-PAD);
+      const x1=Math.min(w,(tx+1)*TILE+PAD), y1=Math.min(h,(ty+1)*TILE+PAD);
+      const tw=x1-x0, th=y1-y0;
+      const tile=new Float32Array(3*th*tw);
+      for (let y=y0;y<y1;y++) for (let x=x0;x<x1;x++) {
+        const si=(y*w+x)*4, ti=((y-y0)*tw+(x-x0));
+        tile[ti]=rgba[si]/255; tile[ti+th*tw]=rgba[si+1]/255; tile[ti+2*th*tw]=rgba[si+2]/255;
+      }
+      const tensor=new ort.Tensor('float32',tile,[1,3,th,tw]);
+      const res=await session.run({input:tensor});
+      const out_tile=res.output.data;
+      const ox0=x0*2, oy0=y0*2;
+      const pw=tw*2, ph=th*2;
+      // Paste only the non-padded region
+      const cx0=(tx*TILE-x0)*2, cy0=(ty*TILE-y0)*2;
+      const cx1=Math.min(pw,(cx0+(TILE)*2)), cy1=Math.min(ph,(cy0+(TILE)*2));
+      for (let y=cy0;y<cy1;y++) for (let x=cx0;x<cx1;x++) {
+        const di=((oy0+y)*nw+(ox0+x));
+        out[di]=out_tile[y*pw+x]; out[nw*nh+di]=out_tile[pw*ph+y*pw+x]; out[2*nw*nh+di]=out_tile[2*pw*ph+y*pw+x];
+      }
+      done++;
+      self.postMessage({ type: 'ai_progress', pct: Math.round(done/total*100) });
+    }
+  }
+  const result = new Uint8ClampedArray(nw*nh*4);
+  for (let i=0;i<nw*nh;i++) {
+    result[i*4]=Math.max(0,Math.min(255,Math.round(out[i]*255)));
+    result[i*4+1]=Math.max(0,Math.min(255,Math.round(out[nw*nh+i]*255)));
+    result[i*4+2]=Math.max(0,Math.min(255,Math.round(out[2*nw*nh+i]*255)));
+    result[i*4+3]=255;
+  }
+  return { data: result, width: nw, height: nh };
+}
+
+// ── Message handler ──────────────────────────────────────────────────
+self.onmessage = async function(e) {
+  const { op, rgba, width, height, params } = e.data;
+  try {
+    let result;
+    if (op === 'sharpen')   result = { data: sharpenJS(rgba, width, height, params.strength), width, height };
+    if (op === 'normalize') result = { data: normalizeJS(rgba, width, height, params.clip), width, height };
+    if (op === 'denoise')   result = { data: denoiseJS(rgba, width, height, params.strength), width, height };
+    if (op === 'upscale') {
+      try {
+        result = await upscaleAI(rgba, width, height);
+      } catch(aiErr) {
+        self.postMessage({ type: 'ai_fallback', reason: aiErr.message });
+        result = upscaleJS(rgba, width, height);
+      }
+    }
+    self.postMessage({ type: 'done', ...result }, [result.data.buffer]);
+  } catch(err) {
+    self.postMessage({ type: 'error', message: err.message });
+  }
+};
+</script>
+
 <!-- ── Three.js importmap + main script ─────────────────────────── -->
 <script type="importmap">
 {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
@@ -732,7 +1015,7 @@ function setLightingMode(mode) {
   if (mode === 'hdri') {
     dirLight.visible = rim.visible = fill.visible = false;
     renderer.toneMappingExposure = 2.0;
-    mat.envMapIntensity = parseFloat(document.getElementById('hdri-intensity').value) || 2.0;
+    mat.envMapIntensity = parseFloat(document.getElementById('hdri-intensity').value) || 0.6;
     mat.needsUpdate = true;
     if (!currentHdr) loadHDRI('studio_small_08_1k.hdr');
     document.getElementById('manual-light-ctrls').style.opacity = '0.35';
@@ -877,7 +1160,12 @@ sl('exposure','vexp',1, v => { renderer.toneMappingExposure=v; requestRender(); 
 sl('opacity-slider','vopacity',2, v => { mat.opacity=v; mat.transparent=v<1; mat.needsUpdate=true; requestRender(4); });
 
 // ── Context menus ─────────────────────────────────────────────────────
-const SHAPE_ICONS = { sphere:'&#9711;', plane:'&#9645;', cube:'&#9632;', cylinder:'&#9677;' };
+const SHAPE_ICONS = {
+  sphere:   '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><ellipse cx="8" cy="8" rx="3" ry="6"/><line x1="2" y1="8" x2="14" y2="8"/></svg>',
+  plane:    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="12" height="7" rx="1"/></svg>',
+  cube:     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10.5L8 13.5L13 10.5V5.5L8 2.5L3 5.5z"/><line x1="8" y1="13.5" x2="8" y2="8"/><line x1="3" y1="5.5" x2="8" y2="8"/><line x1="13" y1="5.5" x2="8" y2="8"/></svg>',
+  cylinder: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="8" cy="5" rx="5" ry="2"/><ellipse cx="8" cy="11" rx="5" ry="2"/><line x1="3" y1="5" x2="3" y2="11"/><line x1="13" y1="5" x2="13" y2="11"/></svg>',
+};
 const ctxShape    = document.getElementById('ctx-shape');
 const ctxLighting = document.getElementById('ctx-lighting');
 const tbShape     = document.getElementById('tb-shape-wrap');
@@ -893,13 +1181,11 @@ function openCtx(menu, btn) {
   menu.classList.add('open');
 }
 
-tbShape.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); openCtx(ctxShape, tbShape); });
-tbShape.addEventListener('click', e => { e.preventDefault(); openCtx(ctxShape, tbShape); });
-tbLight.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); openCtx(ctxLighting, tbLight); });
-tbLight.addEventListener('click', e => { e.preventDefault(); openCtx(ctxLighting, tbLight); });
+tbShape.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); ctxShape.classList.contains('open') ? closeAllCtx() : openCtx(ctxShape, tbShape); });
+tbLight.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); ctxLighting.classList.contains('open') ? closeAllCtx() : openCtx(ctxLighting, tbLight); });
 // Suppress browser context menu globally on toolbar area
 document.getElementById('toolbar').addEventListener('contextmenu', e => e.preventDefault());
-document.addEventListener('click', e => { if (!e.target.closest('.ctx-menu') && !e.target.closest('.tb-btn')) closeAllCtx(); });
+document.addEventListener('click', e => { if (!e.target.closest('.ctx-menu')) closeAllCtx(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllCtx(); });
 
 // Shape menu items
@@ -919,7 +1205,7 @@ document.getElementById('ctx-manual').addEventListener('click', () => {
   setLightingMode('manual');
   document.getElementById('ctx-manual').classList.add('active');
   document.getElementById('ctx-hdri').classList.remove('active');
-  tbLight.innerHTML = '&#9788;';
+  tbLight.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><circle cx="8" cy="8" r="3"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/><line x1="3" y1="3" x2="4.5" y2="4.5"/><line x1="11.5" y1="11.5" x2="13" y2="13"/><line x1="13" y1="3" x2="11.5" y2="4.5"/><line x1="4.5" y1="11.5" x2="3" y2="13"/></svg>';
   tbLight.classList.remove('light-hdri');
   closeAllCtx();
 });
@@ -927,7 +1213,7 @@ document.getElementById('ctx-hdri').addEventListener('click', () => {
   setLightingMode('hdri');
   document.getElementById('ctx-hdri').classList.add('active');
   document.getElementById('ctx-manual').classList.remove('active');
-  tbLight.innerHTML = '&#127774;';
+  tbLight.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><circle cx="8" cy="8" r="6"/><path d="M2 8 Q5 4 8 8 Q11 12 14 8"/><line x1="2" y1="8" x2="14" y2="8"/></svg>';
   tbLight.classList.add('light-hdri');
   closeAllCtx();
 });
@@ -941,7 +1227,7 @@ ctxLighting.querySelectorAll('.ctx-hdri-opt').forEach(item => {
     document.getElementById('ctx-manual').classList.remove('active');
     ctxLighting.querySelectorAll('.ctx-hdri-opt').forEach(i => i.classList.remove('active'));
     item.classList.add('active');
-    tbLight.innerHTML = '&#127774;';
+    tbLight.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><circle cx="8" cy="8" r="6"/><path d="M2 8 Q5 4 8 8 Q11 12 14 8"/><line x1="2" y1="8" x2="14" y2="8"/></svg>';
     tbLight.classList.add('light-hdri');
     closeAllCtx();
   });
@@ -1001,6 +1287,7 @@ function loadFile(file) {
     c.width = img.naturalWidth; c.height = img.naturalHeight;
     c.getContext('2d').drawImage(img, 0, 0);
     loadedImageData = c.getContext('2d').getImageData(0, 0, c.width, c.height);
+    initPipeline(loadedImageData);
     genBtn.disabled = false;
     setStatus('Ready — click Generate Maps', '');
     const smChecked = document.getElementById('chk-seamless').checked;
@@ -1065,13 +1352,14 @@ genBtn.addEventListener('click', () => {
   pLbl.textContent = 'Starting…';
   setStatus('Generating…', '');
 
-  // Copy pixel data to transfer to worker
-  const rgba = new Uint8ClampedArray(loadedImageData.data);
+  // Use stackImageData (post-pipeline) if available, else raw loaded image
+  const srcData = stackImageData || loadedImageData;
+  const rgba = new Uint8ClampedArray(srcData.data);
 
   worker.postMessage({
     rgba,
-    width:          loadedImageData.width,
-    height:         loadedImageData.height,
+    width:          srcData.width,
+    height:         srcData.height,
     normalStrength: +document.getElementById('ns').value,
     roughAlpha:     +document.getElementById('ra').value,
     roughBeta:      +document.getElementById('rb').value,
@@ -1148,13 +1436,14 @@ btnSeamlessOnly.addEventListener('click', () => {
   btnSeamlessOnly.textContent = '💫 Processing…';
   setStatus('Making seamless…', '');
 
-  const rgba = new Uint8ClampedArray(loadedImageData.data);
+  const srcData = stackImageData || loadedImageData;
+  const rgba = new Uint8ClampedArray(srcData.data);
   const blob = new Blob([document.getElementById('worker-src').textContent], { type: 'text/javascript' });
   const w2 = new Worker(URL.createObjectURL(blob));
   w2.postMessage({
     rgba,
-    width:            loadedImageData.width,
-    height:           loadedImageData.height,
+    width:            srcData.width,
+    height:           srcData.height,
     normalStrength:   1, roughAlpha: 1, roughBeta: 0, aoAlpha: 1,
     makeSeamlessFlag: true,
     blendRatio:       +document.getElementById('blend-ratio').value,
@@ -1164,7 +1453,12 @@ btnSeamlessOnly.addEventListener('click', () => {
 
   w2.onmessage = e => {
     if (e.data.type === 'done') {
-      const dataUrl = rgbaToDataURL(new Uint8ClampedArray(e.data.albedo), e.data.width, e.data.height);
+      const seamlessRgba = new Uint8ClampedArray(e.data.albedo);
+      const dataUrl = rgbaToDataURL(seamlessRgba, e.data.width, e.data.height);
+
+      // Update stack so maps generation uses the seamless result
+      stackImageData = new ImageData(seamlessRgba, e.data.width, e.data.height);
+      addLayer('Seamless', 'seamless', {}, new ImageData(seamlessRgba, e.data.width, e.data.height));
 
       // Update the shader albedo with the seamless result
       applyMaps({ albedo: dataUrl });
@@ -1173,10 +1467,10 @@ btnSeamlessOnly.addEventListener('click', () => {
       // Store as current seamless result for download
       lastSeamlessUrl = dataUrl;
 
-      // Show status with inline download button — reads lastSeamlessUrl on click so always current
+      // Show status with inline download button
       statusEl.innerHTML = `Seamless ready &nbsp;<a id="btn-dl-seamless" href="#"
-        style="padding:2px 10px;font-size:10px;font-weight:600;background:transparent;border:1px solid #4f8ef7;
-        color:#4f8ef7;border-radius:5px;cursor:pointer;text-decoration:none">↓ Save</a>`;
+        style="padding:2px 10px;font-size:10px;font-weight:600;background:transparent;border:1px solid #702af8;
+        color:#a78bfa;border-radius:5px;cursor:pointer;text-decoration:none">↓ Save</a>`;
       statusEl.className = 'ok';
       document.getElementById('btn-dl-seamless').addEventListener('click', ev => {
         ev.preventDefault();
@@ -1194,6 +1488,266 @@ btnSeamlessOnly.addEventListener('click', () => {
   };
 });
 let lastSeamlessUrl = null;
+
+// ── Layer engine (Photoshop model) ───────────────────────────────────
+// layers[0] = {label:'Original', imageData, op:null, params:null, enabled:true}
+// layers[n] = {label, imageData (cumulative result), op, params, enabled}
+
+let layers = [];
+let activeToolOp = null;
+let originalImageData = null;
+let stackImageData    = null;
+
+function imgDataToDataURL(imgData) {
+  const c = document.createElement('canvas');
+  c.width = imgData.width; c.height = imgData.height;
+  c.getContext('2d').putImageData(imgData, 0, 0);
+  return c.toDataURL('image/png');
+}
+
+// Compute composite: replay all enabled layers through the enhance worker
+// Returns the ImageData of the topmost enabled layer (or original if all disabled)
+function getComposite() {
+  for (let i = layers.length - 1; i >= 0; i--) {
+    if (layers[i].enabled) return layers[i].imageData;
+  }
+  return layers[0].imageData;
+}
+
+function updateLayerListUI() {
+  const list = document.getElementById('layer-list');
+  list.innerHTML = '';
+  // Show layers bottom-to-top (original at bottom, latest at top) like Photoshop
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const layer = layers[i];
+    const isBase = i === 0;
+    const paramsStr = layer.params
+      ? Object.entries(layer.params).map(([k,v]) => `${k}: ${v}`).join(', ')
+      : '';
+    const row = document.createElement('div');
+    row.className = 'layer-row' + (layer.enabled ? '' : ' disabled');
+    row.dataset.index = i;
+    row.innerHTML = `
+      <svg class="layer-eye ${layer.enabled ? 'on' : ''}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" data-action="eye">
+        <circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/>
+      </svg>
+      <span class="layer-name">${layer.label}</span>
+      <span class="layer-params">${paramsStr}</span>
+      ${!isBase ? `
+        <button class="layer-btn" data-action="compare" title="Compare before/after">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="6" y1="1" x2="6" y2="11"/><polyline points="3,4 1,6 3,8"/><polyline points="9,4 11,6 9,8"/></svg>
+        </button>
+        <button class="layer-btn" data-action="edit" title="Edit params">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2l2 2-6 6H2V8z"/></svg>
+        </button>
+        <button class="layer-btn" data-action="delete" title="Delete layer" style="color:#f87171">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+        </button>
+      ` : ''}
+    `;
+    list.appendChild(row);
+  }
+  document.getElementById('btn-reset-pipeline').style.display = layers.length > 1 ? '' : 'none';
+
+  // Wire row actions
+  list.querySelectorAll('.layer-row').forEach(row => {
+    const idx = parseInt(row.dataset.index);
+    row.querySelector('[data-action="eye"]')?.addEventListener('click', () => toggleLayerVisibility(idx));
+    row.querySelector('[data-action="delete"]')?.addEventListener('click', () => deleteLayer(idx));
+    row.querySelector('[data-action="compare"]')?.addEventListener('click', () => openCompare(idx));
+    row.querySelector('[data-action="edit"]')?.addEventListener('click', () => openParamEditor(layers[idx].op, layers[idx].params, idx));
+  });
+}
+
+function toggleLayerVisibility(idx) {
+  layers[idx].enabled = !layers[idx].enabled;
+  const composite = getComposite();
+  applyMaps({ albedo: imgDataToDataURL(composite) });
+  stackImageData = composite;
+  updateLayerListUI();
+}
+
+function deleteLayer(idx) {
+  if (idx === 0) return; // can't delete original
+  layers.splice(idx, 1);
+  stackImageData = getComposite();
+  applyMaps({ albedo: imgDataToDataURL(stackImageData) });
+  updateLayerListUI();
+  setStatus('Layer removed', '');
+}
+
+function addLayer(label, op, params, resultImageData) {
+  layers.push({ label, op, params, imageData: resultImageData, enabled: true });
+  stackImageData = resultImageData;
+  applyMaps({ albedo: imgDataToDataURL(stackImageData) });
+  document.getElementById('canvas-hint').style.display = 'none';
+  updateLayerListUI();
+}
+
+// ── Param editor popover ──────────────────────────────────────────────
+const TOOL_DEFS = {
+  denoise:   { label: 'Denoise',   params: [{ id:'strength', label:'Strength', min:0.1, max:1,  step:0.1, def:0.5 }], badge:'AI' },
+  sharpen:   { label: 'Sharpen',   params: [{ id:'strength', label:'Strength', min:0.1, max:2,  step:0.1, def:0.6 }], badge:'JS' },
+  normalize: { label: 'Normalize', params: [{ id:'clip',     label:'Clip %',   min:0,   max:5,  step:0.5, def:1   }], badge:'JS' },
+  upscale:   { label: 'Upscale 2\u00d7', params: [], badge:'AI', note:'Doubles resolution using Real-ESRGAN. Downloads once (~5MB), stays cached.' },
+};
+
+let editingLayerIdx = null;
+
+function openParamEditor(op, currentParams, layerIdx) {
+  activeToolOp = op;
+  editingLayerIdx = (layerIdx !== undefined) ? layerIdx : null;
+  const def = TOOL_DEFS[op];
+  const editor = document.getElementById('pipe-param-editor');
+  const inner  = document.getElementById('ppe-inner');
+
+  inner.innerHTML = `<div style="font-size:10px;font-weight:600;color:#c4b5fd;margin-bottom:8px">${def.label} <span style="font-size:8px;background:rgba(112,42,248,.2);border:1px solid #702af8;color:#a78bfa;padding:1px 5px;border-radius:3px">${def.badge}</span></div>`;
+  def.params.forEach(p => {
+    const val = currentParams ? currentParams[p.id] : p.def;
+    inner.innerHTML += `
+      <div class="ctrl-row"><span>${p.label}</span><b id="ppe-v-${p.id}">${val}</b></div>
+      <input type="range" id="ppe-${p.id}" min="${p.min}" max="${p.max}" step="${p.step}" value="${val}" style="margin-bottom:8px">
+    `;
+  });
+  if (def.note) inner.innerHTML += `<div style="font-size:9px;color:#4a4f6a;line-height:1.5">${def.note}</div>`;
+
+  // Wire slider labels
+  def.params.forEach(p => {
+    const sl = document.getElementById('ppe-' + p.id);
+    const vl = document.getElementById('ppe-v-' + p.id);
+    if (sl && vl) sl.addEventListener('input', () => vl.textContent = parseFloat(sl.value).toFixed(p.step < 1 ? 1 : 0));
+  });
+
+  // Mark active tool button
+  document.querySelectorAll('.pipe-tool-btn').forEach(b => b.classList.remove('busy'));
+  document.getElementById('ptool-' + op)?.classList.add('busy');
+
+  editor.classList.add('open');
+  document.getElementById('ppe-apply').dataset.op = op;
+}
+
+function closeParamEditor() {
+  document.getElementById('pipe-param-editor').classList.remove('open');
+  document.querySelectorAll('.pipe-tool-btn').forEach(b => b.classList.remove('busy'));
+  activeToolOp = null;
+  editingLayerIdx = null;
+}
+
+document.getElementById('ppe-cancel').addEventListener('click', closeParamEditor);
+
+document.getElementById('ppe-apply').addEventListener('click', () => {
+  const op  = document.getElementById('ppe-apply').dataset.op;
+  const def = TOOL_DEFS[op];
+  const params = {};
+  def.params.forEach(p => { params[p.id] = parseFloat(document.getElementById('ppe-' + p.id).value); });
+
+  // If editing existing layer, delete it first then re-apply from its predecessor
+  if (editingLayerIdx !== null) {
+    const prevIdx = editingLayerIdx - 1;
+    const srcData = layers[prevIdx].imageData;
+    layers.splice(editingLayerIdx, 1);
+    stackImageData = layers[layers.length-1]?.imageData || originalImageData;
+    runEnhanceOp(op, params, def.label, srcData);
+  } else {
+    runEnhanceOp(op, params, def.label, stackImageData || originalImageData);
+  }
+  closeParamEditor();
+});
+
+// Wire tool buttons to open param editor
+document.querySelectorAll('.pipe-tool-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const op = btn.dataset.op;
+    if (activeToolOp === op) { closeParamEditor(); return; }
+    openParamEditor(op, null, undefined);
+  });
+});
+
+// ── Run enhance operation ─────────────────────────────────────────────
+function setToolsBusy(busy) {
+  document.querySelectorAll('.pipe-tool-btn').forEach(b => { if (!b.classList.contains('busy')) b.disabled = busy || !loadedImageData; });
+  document.getElementById('ppe-apply').disabled = busy;
+}
+
+function runEnhanceOp(op, params, label, srcImageData) {
+  setToolsBusy(true);
+  setStatus('Processing: ' + label + '…', '');
+
+  const ew = getEnhanceWorker();
+  const rgba = new Uint8ClampedArray(srcImageData.data);
+  ew.postMessage({ op, rgba, width: srcImageData.width, height: srcImageData.height, params }, [rgba.buffer]);
+
+  ew.onmessage = e => {
+    const d = e.data;
+    if (d.type === 'model_download_start') { setStatus('Downloading AI model (once)…', ''); return; }
+    if (d.type === 'model_download_done')  { setStatus('Model cached — processing…', ''); return; }
+    if (d.type === 'ai_progress') { setStatus(`AI processing… ${d.pct}%`, ''); return; }
+    if (d.type === 'ai_fallback') { setStatus('AI unavailable, using JS fallback…', ''); return; }
+    if (d.type === 'error') { setStatus('Error: ' + d.message, 'err'); setToolsBusy(false); return; }
+    if (d.type === 'done') {
+      const resultData = new ImageData(new Uint8ClampedArray(d.data), d.width, d.height);
+      addLayer(label, op, params, resultData);
+      setStatus(label + ' layer added ✔', 'ok');
+      setToolsBusy(false);
+    }
+  };
+}
+
+// ── Compare modal ─────────────────────────────────────────────────────
+const compareModal = document.getElementById('compare-modal');
+
+function openCompare(layerIdx) {
+  const after  = layers[layerIdx];
+  const before = layers[layerIdx - 1] || layers[0];
+  document.getElementById('compare-title').textContent = `${before.label}  →  ${after.label}`;
+  document.getElementById('compare-before').style.backgroundImage = `url('${imgDataToDataURL(before.imageData)}')`;
+  document.getElementById('compare-after').style.backgroundImage  = `url('${imgDataToDataURL(after.imageData)}')`;
+  setCompareSplit(50);
+  compareModal.classList.add('open');
+}
+
+function setCompareSplit(pct) {
+  document.getElementById('compare-after').style.clipPath = `inset(0 ${100-pct}% 0 0)`;
+  document.getElementById('compare-divider').style.left = pct + '%';
+  document.getElementById('compare-handle').style.left = pct + '%';
+}
+
+document.getElementById('compare-close').addEventListener('click', () => compareModal.classList.remove('open'));
+compareModal.addEventListener('click', e => { if (e.target === compareModal) compareModal.classList.remove('open'); });
+
+const vp = document.getElementById('compare-viewport');
+let dragging = false;
+function handleCompareDrag(e) {
+  if (!dragging) return;
+  const r = vp.getBoundingClientRect();
+  const x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+  setCompareSplit(Math.max(0, Math.min(100, x / r.width * 100)));
+}
+vp.addEventListener('mousedown',  () => { dragging = true; });
+vp.addEventListener('touchstart', () => { dragging = true; }, { passive:true });
+document.addEventListener('mouseup',   () => { dragging = false; });
+document.addEventListener('touchend',  () => { dragging = false; });
+document.addEventListener('mousemove', handleCompareDrag);
+document.addEventListener('touchmove', handleCompareDrag, { passive:true });
+
+// ── Init / Reset ──────────────────────────────────────────────────────
+function initPipeline(imgData) {
+  originalImageData = imgData;
+  stackImageData    = imgData;
+  layers = [{ label: 'Original', op: null, params: null, imageData: imgData, enabled: true }];
+  closeParamEditor();
+  updateLayerListUI();
+  document.querySelectorAll('.pipe-tool-btn').forEach(b => b.disabled = false);
+}
+
+document.getElementById('btn-reset-pipeline').addEventListener('click', () => {
+  if (!originalImageData) return;
+  layers = [{ label: 'Original', op: null, params: null, imageData: originalImageData, enabled: true }];
+  stackImageData = originalImageData;
+  applyMaps({ albedo: imgDataToDataURL(originalImageData) });
+  updateLayerListUI();
+  setStatus('Flattened to original', '');
+});
 const blendEl = document.getElementById('blend-ratio');
 const blendVl = document.getElementById('vblend');
 blendEl.addEventListener('input', () => {
