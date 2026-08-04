@@ -225,6 +225,7 @@ select:focus{border-color:#702af8}
       </div>
     </div>
     <button id="btn-reset-pipeline" style="width:100%;padding:7px;background:transparent;border:1px solid #2d2f3d;color:#4a4f6a;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s;display:none">↩ Flatten to Original</button>
+    <button id="btn-dl-flattened" style="width:100%;padding:7px;margin-top:5px;background:transparent;border:1px solid #702af8;color:#a78bfa;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s;display:none">↓ Download Flattened Texture</button>
   </div>
   <!-- Compare modal -->
   <div id="compare-modal">
@@ -242,7 +243,7 @@ select:focus{border-color:#702af8}
         </div>
         <div id="compare-labels"><span>BEFORE</span><span>AFTER</span></div>
       </div>
-      <div id="compare-footer">Drag the divider to compare · Drag anywhere on the image</div>
+      <div id="compare-footer">Drag divider to compare · Scroll to zoom · Double-click to reset zoom</div>
     </div>
   </div>
   <div class="section">
@@ -269,8 +270,8 @@ select:focus{border-color:#702af8}
       </div>
     </div>
     <div class="ctrl">
-      <div class="ctrl-row"><span>Tiling</span><b id="vtile">1.0x</b></div>
-      <input type="range" id="tile" min="0.5" max="10" step="0.5" value="1">
+      <div class="ctrl-row"><span>Tiling</span><b id="vtile">2.0x</b></div>
+      <input type="range" id="tile" min="0.5" max="10" step="0.5" value="2">
     </div>
     <div class="ctrl">
       <div class="ctrl-row"><span>Normal Strength (preview)</span><b id="vnsc">1.0</b></div>
@@ -748,32 +749,69 @@ function normalizeJS(rgba, w, h, clip) {
 }
 
 function denoiseJS(rgba, w, h, strength) {
-  // Bilateral-style approximation: gaussian blur blended by strength
-  const sigma = strength * 2 + 0.5;
-  const r = Math.ceil(sigma * 2);
-  const kernel = [];
-  let sum = 0;
-  for (let i = -r; i <= r; i++) { const v = Math.exp(-(i*i)/(2*sigma*sigma)); kernel.push(v); sum += v; }
-  for (let i = 0; i < kernel.length; i++) kernel[i] /= sum;
-  const tmp = new Float32Array(w * h * 3);
-  const src = rgba;
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++)
-      for (let c = 0; c < 3; c++) {
-        let v = 0;
-        for (let k = -r; k <= r; k++) { const sx = Math.max(0,Math.min(w-1,x+k)); v += src[(y*w+sx)*4+c]*kernel[k+r]; }
-        tmp[(y*w+x)*3+c] = v;
-      }
+  // Bilateral filter — removes noise while preserving edges.
+  // Spatial sigma controls neighborhood size, range sigma controls
+  // how aggressively to preserve edges (pixels with similar color are averaged,
+  // pixels across edges are NOT averaged).
   const out = new Uint8ClampedArray(rgba.length);
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++)
-      for (let c = 0; c < 3; c++) {
-        let v = 0;
-        for (let k = -r; k <= r; k++) { const sy = Math.max(0,Math.min(h-1,y+k)); v += tmp[(sy*w+x)*3+c]*kernel[k+r]; }
-        const i = (y*w+x)*4;
-        out[i+c] = Math.round(v * strength + src[i+c] * (1-strength));
-        out[i+3] = 255;
+  const spatialSigma = 3 + strength * 4;   // 3..7 px neighborhood
+  const rangeSigma   = 20 + strength * 40;  // 20..60 color tolerance
+  const r = Math.ceil(spatialSigma * 1.5);
+
+  const spatialW = new Float32Array((2*r+1) * (2*r+1));
+  let si = 0;
+  for (let dy = -r; dy <= r; dy++)
+    for (let dx = -r; dx <= r; dx++)
+      spatialW[si++] = Math.exp(-(dx*dx+dy*dy)/(2*spatialSigma*spatialSigma));
+
+  const rs2 = 2 * rangeSigma * rangeSigma;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const ci = (y*w+x)*4;
+      const cr = rgba[ci], cg = rgba[ci+1], cb = rgba[ci+2];
+      let sumR=0, sumG=0, sumB=0, sumW=0;
+      si = 0;
+      for (let dy = -r; dy <= r; dy++) {
+        const ny = Math.max(0, Math.min(h-1, y+dy));
+        for (let dx = -r; dx <= r; dx++) {
+          const nx = Math.max(0, Math.min(w-1, x+dx));
+          const ni = (ny*w+nx)*4;
+          const nr = rgba[ni], ng = rgba[ni+1], nb = rgba[ni+2];
+          const colorDist = (nr-cr)*(nr-cr)+(ng-cg)*(ng-cg)+(nb-cb)*(nb-cb);
+          const w2 = spatialW[si] * Math.exp(-colorDist/rs2);
+          sumR += nr*w2; sumG += ng*w2; sumB += nb*w2; sumW += w2;
+          si++;
+        }
       }
+      out[ci]   = Math.round(sumR/sumW);
+      out[ci+1] = Math.round(sumG/sumW);
+      out[ci+2] = Math.round(sumB/sumW);
+      out[ci+3] = 255;
+    }
+  }
+  return out;
+}
+
+function bilinearResize(rgba, sw, sh, dw, dh) {
+  const out = new Uint8ClampedArray(dw * dh * 4);
+  for (let y = 0; y < dh; y++) {
+    for (let x = 0; x < dw; x++) {
+      const sx = x * (sw/dw), sy = y * (sh/dh);
+      const x0=Math.floor(sx), y0=Math.floor(sy);
+      const x1=Math.min(x0+1,sw-1), y1=Math.min(y0+1,sh-1);
+      const fx=sx-x0, fy=sy-y0;
+      const i=(y*dw+x)*4;
+      for (let c=0;c<4;c++) {
+        out[i+c] = Math.round(
+          rgba[(y0*sw+x0)*4+c]*(1-fx)*(1-fy)+
+          rgba[(y0*sw+x1)*4+c]*fx*(1-fy)+
+          rgba[(y1*sw+x0)*4+c]*(1-fx)*fy+
+          rgba[(y1*sw+x1)*4+c]*fx*fy
+        );
+      }
+    }
+  }
   return out;
 }
 
@@ -880,7 +918,19 @@ self.onmessage = async function(e) {
     let result;
     if (op === 'sharpen')   result = { data: sharpenJS(rgba, width, height, params.strength), width, height };
     if (op === 'normalize') result = { data: normalizeJS(rgba, width, height, params.clip), width, height };
-    if (op === 'denoise')   result = { data: denoiseJS(rgba, width, height, params.strength), width, height };
+    if (op === 'denoise') {
+      // Cap working size to keep bilateral filter fast
+      const MAX = 512;
+      const scale = Math.min(1, MAX / Math.max(width, height));
+      if (scale < 1) {
+        const sw = Math.round(width*scale), sh = Math.round(height*scale);
+        const small = bilinearResize(rgba, width, height, sw, sh);
+        const denoised = denoiseJS(small, sw, sh, params.strength);
+        result = { data: bilinearResize(denoised, sw, sh, width, height), width, height };
+      } else {
+        result = { data: denoiseJS(rgba, width, height, params.strength), width, height };
+      }
+    }
     if (op === 'upscale') {
       try {
         result = await upscaleAI(rgba, width, height);
@@ -1498,6 +1548,17 @@ let activeToolOp = null;
 let originalImageData = null;
 let stackImageData    = null;
 
+// Enhance worker (lazy-init, persists for session)
+const enhanceWorkerBlob = new Blob(
+  [document.getElementById('enhance-worker-src').textContent],
+  { type: 'text/javascript' }
+);
+let enhanceWorker = null;
+function getEnhanceWorker() {
+  if (!enhanceWorker) enhanceWorker = new Worker(URL.createObjectURL(enhanceWorkerBlob));
+  return enhanceWorker;
+}
+
 function imgDataToDataURL(imgData) {
   const c = document.createElement('canvas');
   c.width = imgData.width; c.height = imgData.height;
@@ -1537,17 +1598,25 @@ function updateLayerListUI() {
         <button class="layer-btn" data-action="compare" title="Compare before/after">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="6" y1="1" x2="6" y2="11"/><polyline points="3,4 1,6 3,8"/><polyline points="9,4 11,6 9,8"/></svg>
         </button>
+        <button class="layer-btn" data-action="download" title="Download this layer">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="6" y1="1" x2="6" y2="8"/><polyline points="3,5 6,8 9,5"/><line x1="1" y1="11" x2="11" y2="11"/></svg>
+        </button>
         <button class="layer-btn" data-action="edit" title="Edit params">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2l2 2-6 6H2V8z"/></svg>
         </button>
         <button class="layer-btn" data-action="delete" title="Delete layer" style="color:#f87171">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
         </button>
-      ` : ''}
+      ` : `
+        <button class="layer-btn" data-action="download" title="Download original">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="6" y1="1" x2="6" y2="8"/><polyline points="3,5 6,8 9,5"/><line x1="1" y1="11" x2="11" y2="11"/></svg>
+        </button>
+      `}
     `;
     list.appendChild(row);
   }
   document.getElementById('btn-reset-pipeline').style.display = layers.length > 1 ? '' : 'none';
+  document.getElementById('btn-dl-flattened').style.display = layers.length > 1 ? '' : 'none';
 
   // Wire row actions
   list.querySelectorAll('.layer-row').forEach(row => {
@@ -1556,6 +1625,12 @@ function updateLayerListUI() {
     row.querySelector('[data-action="delete"]')?.addEventListener('click', () => deleteLayer(idx));
     row.querySelector('[data-action="compare"]')?.addEventListener('click', () => openCompare(idx));
     row.querySelector('[data-action="edit"]')?.addEventListener('click', () => openParamEditor(layers[idx].op, layers[idx].params, idx));
+    row.querySelector('[data-action="download"]')?.addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.href = imgDataToDataURL(layers[idx].imageData);
+      a.download = `${currentFileName}_${layers[idx].label.replace(/\s+/g,'_').toLowerCase()}.png`;
+      a.click();
+    });
   });
 }
 
@@ -1673,24 +1748,37 @@ function runEnhanceOp(op, params, label, srcImageData) {
   setToolsBusy(true);
   setStatus('Processing: ' + label + '…', '');
 
-  const ew = getEnhanceWorker();
+  // Use a fresh one-shot worker per operation to avoid handler conflicts
+  const workerBlob = new Blob(
+    [document.getElementById('enhance-worker-src').textContent],
+    { type: 'text/javascript' }
+  );
+  const ew = new Worker(URL.createObjectURL(workerBlob));
   const rgba = new Uint8ClampedArray(srcImageData.data);
-  ew.postMessage({ op, rgba, width: srcImageData.width, height: srcImageData.height, params }, [rgba.buffer]);
 
+  // Assign handler BEFORE postMessage
   ew.onmessage = e => {
     const d = e.data;
     if (d.type === 'model_download_start') { setStatus('Downloading AI model (once)…', ''); return; }
     if (d.type === 'model_download_done')  { setStatus('Model cached — processing…', ''); return; }
     if (d.type === 'ai_progress') { setStatus(`AI processing… ${d.pct}%`, ''); return; }
     if (d.type === 'ai_fallback') { setStatus('AI unavailable, using JS fallback…', ''); return; }
-    if (d.type === 'error') { setStatus('Error: ' + d.message, 'err'); setToolsBusy(false); return; }
+    if (d.type === 'error') { setStatus('Error: ' + d.message, 'err'); setToolsBusy(false); ew.terminate(); return; }
     if (d.type === 'done') {
       const resultData = new ImageData(new Uint8ClampedArray(d.data), d.width, d.height);
       addLayer(label, op, params, resultData);
       setStatus(label + ' layer added ✔', 'ok');
       setToolsBusy(false);
+      ew.terminate();
     }
   };
+  ew.onerror = err => {
+    setStatus('Worker error: ' + err.message, 'err');
+    setToolsBusy(false);
+    ew.terminate();
+  };
+
+  ew.postMessage({ op, rgba, width: srcImageData.width, height: srcImageData.height, params }, [rgba.buffer]);
 }
 
 // ── Compare modal ─────────────────────────────────────────────────────
@@ -1702,6 +1790,8 @@ function openCompare(layerIdx) {
   document.getElementById('compare-title').textContent = `${before.label}  →  ${after.label}`;
   document.getElementById('compare-before').style.backgroundImage = `url('${imgDataToDataURL(before.imageData)}')`;
   document.getElementById('compare-after').style.backgroundImage  = `url('${imgDataToDataURL(after.imageData)}')`;
+  compareZoom = 1; comparePanX = 0; comparePanY = 0;
+  applyCompareTransform();
   setCompareSplit(50);
   compareModal.classList.add('open');
 }
@@ -1717,6 +1807,27 @@ compareModal.addEventListener('click', e => { if (e.target === compareModal) com
 
 const vp = document.getElementById('compare-viewport');
 let dragging = false;
+let compareZoom = 1;
+let comparePanX = 0, comparePanY = 0;
+
+function applyCompareTransform() {
+  const t = `scale(${compareZoom}) translate(${comparePanX}px, ${comparePanY}px)`;
+  document.getElementById('compare-before').style.transform = t;
+  document.getElementById('compare-after').style.transform = t;
+}
+
+// Zoom with scroll wheel
+vp.addEventListener('wheel', e => {
+  e.preventDefault();
+  compareZoom = Math.max(0.5, Math.min(5, compareZoom - e.deltaY * 0.001));
+  applyCompareTransform();
+}, { passive: false });
+
+// Reset zoom on double-click
+vp.addEventListener('dblclick', () => {
+  compareZoom = 1; comparePanX = 0; comparePanY = 0;
+  applyCompareTransform();
+});
 function handleCompareDrag(e) {
   if (!dragging) return;
   const r = vp.getBoundingClientRect();
@@ -1747,6 +1858,14 @@ document.getElementById('btn-reset-pipeline').addEventListener('click', () => {
   applyMaps({ albedo: imgDataToDataURL(originalImageData) });
   updateLayerListUI();
   setStatus('Flattened to original', '');
+});
+
+document.getElementById('btn-dl-flattened').addEventListener('click', () => {
+  const composite = getComposite();
+  const a = document.createElement('a');
+  a.href = imgDataToDataURL(composite);
+  a.download = `${currentFileName}_flattened.png`;
+  a.click();
 });
 const blendEl = document.getElementById('blend-ratio');
 const blendVl = document.getElementById('vblend');
