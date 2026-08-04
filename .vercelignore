@@ -1,0 +1,13 @@
+output/
+samples/
+assets/
+src/
+*.py
+*.bat
+*.log
+*.txt
+requirements.txt
+README.md
+app.html
+app copy.html
+.git/

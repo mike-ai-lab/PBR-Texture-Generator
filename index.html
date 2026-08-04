@@ -57,11 +57,15 @@ select:focus{border-color:#4f8ef7}
 #view-2d.visible{display:grid}
 .map-card{background:#1a1a24;border-radius:12px;overflow:hidden;border:1px solid #2d3748}
 .map-card-title{padding:8px 12px;font-size:11px;font-weight:600;color:#94a3b8;border-bottom:1px solid #2d3748;display:flex;justify-content:space-between;align-items:center}
-.map-card img{width:100%;display:block}
-.map-card .placeholder{height:160px;display:flex;align-items:center;justify-content:center;font-size:28px;color:#2d3748}
+.map-card img{width:100%;aspect-ratio:1/1;display:block;object-fit:cover}
+.map-card .placeholder{aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:28px;color:#2d3748}
 .btn-dl{padding:3px 10px;font-size:10px;font-weight:600;background:transparent;border:1px solid #2d3748;color:#64748b;border-radius:5px;cursor:pointer;transition:.15s;text-decoration:none}
 .btn-dl:hover{border-color:#4f8ef7;color:#4f8ef7}
-#tile-test-canvas{width:100%;height:220px;background-repeat:repeat;background-size:33.33%;border-radius:0 0 12px 12px}
+#tile-test-canvas{width:100%;aspect-ratio:2/1;background-repeat:repeat;background-size:33.33%;border-radius:0 0 12px 12px}
+/* seamless-only button */
+#btn-seamless-only{width:100%;padding:8px;margin-bottom:6px;background:transparent;border:1px solid #4f8ef7;color:#4f8ef7;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;transition:.15s}
+#btn-seamless-only:hover{background:rgba(79,142,247,.1)}
+#btn-seamless-only:disabled{border-color:#2d3748;color:#475569;cursor:not-allowed}
 #loading{position:absolute;inset:0;background:#13131a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9;transition:opacity .4s}
 .spinner{width:42px;height:42px;border-radius:50%;border:3px solid rgba(255,255,255,.08);border-top-color:#4f8ef7;animation:spin .8s linear infinite;margin-bottom:12px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -130,6 +134,7 @@ select:focus{border-color:#4f8ef7}
       <input type="checkbox" id="chk-seamless" style="width:15px;height:15px;accent-color:#4f8ef7;cursor:pointer">
     </div>
     <div id="seamless-opts" style="display:none">
+      <button id="btn-seamless-only" disabled>⬡ Make Seamless Only</button>
       <button id="btn-sm-preview">⬡ Preview Seams &amp; Blend Zone</button>
       <div class="ctrl">
         <div class="ctrl-row"><span>Blend Width</span><b id="vblend">0.25</b></div>
@@ -228,7 +233,7 @@ select:focus{border-color:#4f8ef7}
       <span>Shape</span>
       <select id="shape">
         <option value="plane">Plane</option>
-        <option value="sphere">Sphere</option>
+        <option value="sphere" selected>Sphere</option>
         <option value="cube">Cube</option>
         <option value="cylinder">Cylinder</option>
       </select>
@@ -259,7 +264,7 @@ select:focus{border-color:#4f8ef7}
     <div class="map-card" id="card-ao"><div class="map-card-title">Ambient Occlusion</div><div class="placeholder">—</div></div>
     <div class="map-card" id="card-tile-test" style="grid-column:1/-1">
       <div class="map-card-title"><span>Tiling Test (3×3)</span><span style="font-size:10px;color:#475569;font-weight:400">Check for seams</span></div>
-      <div class="placeholder" style="height:200px">—</div>
+      <div class="placeholder" style="height:160px">—</div>
     </div>
   </div>
 </div>
@@ -552,13 +557,20 @@ function makeSeamless(rgba, origW, origH, blendRatio, workSize) {
 // ── Worker message handler ────────────────────────────────────────────
 self.onmessage = function(e) {
   const { rgba, width, height, normalStrength, roughAlpha, roughBeta, aoAlpha,
-          makeSeamlessFlag, blendRatio, workSize } = e.data;
+          makeSeamlessFlag, blendRatio, workSize, seamlessOnlyMode } = e.data;
 
   let pixels = rgba;
 
   if (makeSeamlessFlag) {
     self.postMessage({ type: 'progress', step: 1, total: 5, label: 'Making seamless…' });
     pixels = makeSeamless(rgba, width, height, blendRatio, workSize);
+  }
+
+  // If only seamless was requested, return just the albedo and stop
+  if (seamlessOnlyMode) {
+    self.postMessage({ type: 'done', albedo: pixels, normal: null, roughness: null, ao: null, width, height },
+      [pixels.buffer]);
+    return;
   }
 
   const total = makeSeamlessFlag ? 5 : 4;
@@ -657,8 +669,19 @@ renderer.setAnimationLoop(() => {
 });
 document.addEventListener('visibilitychange', () => { if(!document.hidden) requestRender(); });
 
-document.getElementById('loading').style.opacity = '0';
-setTimeout(() => { document.getElementById('loading').style.display = 'none'; }, 400);
+// Hide loading overlay after first render completes
+renderer.setAnimationLoop(function onFirstRender() {
+  renderer.render(scene, camera);
+  const loadEl = document.getElementById('loading');
+  loadEl.style.opacity = '0';
+  setTimeout(() => { loadEl.style.display = 'none'; }, 400);
+  renderer.setAnimationLoop(() => {
+    if (dampingFrames > 0) { controls.update(); dampingFrames--; needsRender = true; }
+    if (!needsRender) return;
+    needsRender = false;
+    renderer.render(scene, camera);
+  });
+});
 
 const hdriBase = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/';
 let currentHdr = null, lightingMode = 'manual';
@@ -686,7 +709,7 @@ function buildShape(type) {
   camera.position.set(0, type==='plane'?4:2, type==='plane'?4:6);
   controls.target.set(0,0,0); controls.update(); requestRender();
 }
-buildShape('plane');
+buildShape('sphere');
 
 function setLight(x, y) {
   dirLight.position.setFromSphericalCoords(10,
@@ -783,8 +806,26 @@ function populate2D(maps) {
   if (maps.albedo) {
     document.getElementById('card-tile-test').innerHTML =
       `<div class="map-card-title"><span>Tiling Test (3×3)</span>
-       <span style="font-size:10px;color:#475569;font-weight:400">Check for seams</span></div>
+       <button class="btn-dl" id="btn-dl-tile">&#8595; Save</button></div>
        <div id="tile-test-canvas" style="background-image:url('${maps.albedo}')"></div>`;
+    // Save button — renders the 3x3 tile to a canvas and downloads it
+    document.getElementById('btn-dl-tile').addEventListener('click', () => {
+      const src = maps.albedo;
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = img.width * 3; c.height = img.height * 3;
+        const ctx = c.getContext('2d');
+        for (let row = 0; row < 3; row++)
+          for (let col = 0; col < 3; col++)
+            ctx.drawImage(img, col * img.width, row * img.height);
+        const a = document.createElement('a');
+        a.href = c.toDataURL('image/png');
+        a.download = currentFileName + '_tiled3x3.png';
+        a.click();
+      };
+      img.src = src;
+    });
   }
 }
 
@@ -890,8 +931,16 @@ function loadFile(file) {
     loadedImageData = c.getContext('2d').getImageData(0, 0, c.width, c.height);
     genBtn.disabled = false;
     setStatus('Ready — click Generate Maps', '');
-    document.getElementById('seamless-opts').style.display =
-      document.getElementById('chk-seamless').checked ? '' : 'none';
+    const smChecked = document.getElementById('chk-seamless').checked;
+    document.getElementById('seamless-opts').style.display = smChecked ? '' : 'none';
+    document.getElementById('btn-seamless-only').style.display = smChecked ? '' : 'none';
+    document.getElementById('btn-seamless-only').disabled = false;
+
+    // Apply raw texture to shader immediately — no need to wait for generation
+    const rawDataUrl = c.toDataURL('image/png');
+    const rawMaps = { albedo: rawDataUrl };
+    applyMaps(rawMaps);
+    document.getElementById('canvas-hint').style.display = 'none';
   };
   img.onerror = () => setStatus('Failed to load image', 'err');
   img.src = thumbObjectURL;
@@ -1012,8 +1061,67 @@ genBtn.addEventListener('click', () => {
 const chkSeamless  = document.getElementById('chk-seamless');
 const seamlessOpts = document.getElementById('seamless-opts');
 chkSeamless.addEventListener('change', () => {
-  seamlessOpts.style.display = chkSeamless.checked ? '' : 'none';
+  const on = chkSeamless.checked;
+  seamlessOpts.style.display = on ? '' : 'none';
+  const btn = document.getElementById('btn-seamless-only');
+  btn.style.display = on ? '' : 'none';
+  btn.disabled = !loadedImageData;
 });
+
+// ── Make Seamless Only ────────────────────────────────────────────────
+const btnSeamlessOnly = document.getElementById('btn-seamless-only');
+btnSeamlessOnly.addEventListener('click', () => {
+  if (!loadedImageData) return;
+  btnSeamlessOnly.disabled = true;
+  btnSeamlessOnly.textContent = '💫 Processing…';
+  setStatus('Making seamless…', '');
+
+  const rgba = new Uint8ClampedArray(loadedImageData.data);
+  const blob = new Blob([document.getElementById('worker-src').textContent], { type: 'text/javascript' });
+  const w2 = new Worker(URL.createObjectURL(blob));
+  w2.postMessage({
+    rgba,
+    width:            loadedImageData.width,
+    height:           loadedImageData.height,
+    normalStrength:   1, roughAlpha: 1, roughBeta: 0, aoAlpha: 1,
+    makeSeamlessFlag: true,
+    blendRatio:       +document.getElementById('blend-ratio').value,
+    workSize:         +(document.getElementById('work-size')?.value || 512),
+    seamlessOnlyMode: true,
+  }, [rgba.buffer]);
+
+  w2.onmessage = e => {
+    if (e.data.type === 'done') {
+      const dataUrl = rgbaToDataURL(new Uint8ClampedArray(e.data.albedo), e.data.width, e.data.height);
+
+      // Update the shader albedo with the seamless result
+      applyMaps({ albedo: dataUrl });
+      document.getElementById('canvas-hint').style.display = 'none';
+
+      // Store as current seamless result for download
+      lastSeamlessUrl = dataUrl;
+
+      // Show status with inline download button — reads lastSeamlessUrl on click so always current
+      statusEl.innerHTML = `Seamless ready &nbsp;<a id="btn-dl-seamless" href="#"
+        style="padding:2px 10px;font-size:10px;font-weight:600;background:transparent;border:1px solid #4f8ef7;
+        color:#4f8ef7;border-radius:5px;cursor:pointer;text-decoration:none">↓ Save</a>`;
+      statusEl.className = 'ok';
+      document.getElementById('btn-dl-seamless').addEventListener('click', ev => {
+        ev.preventDefault();
+        if (!lastSeamlessUrl) return;
+        const a = document.createElement('a');
+        a.href = lastSeamlessUrl;
+        a.download = currentFileName + '_seamless.png';
+        a.click();
+      });
+
+      btnSeamlessOnly.disabled = false;
+      btnSeamlessOnly.textContent = '⬡ Make Seamless Only';
+      w2.terminate();
+    }
+  };
+});
+let lastSeamlessUrl = null;
 const blendEl = document.getElementById('blend-ratio');
 const blendVl = document.getElementById('vblend');
 blendEl.addEventListener('input', () => {

@@ -14,7 +14,7 @@ os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 @app.route("/")
 def index():
-    return send_from_directory(ROOT, "app.html")
+    return send_from_directory(ROOT, "index.html")
 
 
 @app.route("/upload", methods=["POST"])
