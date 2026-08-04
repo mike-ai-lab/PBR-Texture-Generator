@@ -30,6 +30,10 @@ def serve_opencv():
         except Exception as e:
             return f"Failed to fetch OpenCV.js: {e}", 502
     return send_file(OPENCV_JS_PATH, mimetype="text/javascript")
+
+
+@app.route("/")
+def index():
     return send_from_directory(ROOT, "index.html")
 
 

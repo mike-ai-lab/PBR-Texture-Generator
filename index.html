@@ -816,61 +816,6 @@ function denoiseJS(rgba, w, h, strength) {
   return out;
 }
 
-// High-quality NLM via OpenCV.js (downloads ~10MB once, cached permanently)
-const CV_CACHE = 'pbr-cv-v1';
-const CV_URL   = '/opencv.js';  // served locally by Flask, no CORS issues
-let cvReady = false;
-
-async function ensureOpenCV() {
-  if (cvReady) return true;
-  if (typeof cv !== 'undefined' && cv.Mat) { cvReady = true; return true; }
-  const cache = await caches.open(CV_CACHE);
-  let script;
-  const cached = await cache.match(CV_URL);
-  if (cached) {
-    script = await cached.text();
-  } else {
-    self.postMessage({ type: 'cv_download_start' });
-    const resp = await fetch(CV_URL);
-    if (!resp.ok) throw new Error('OpenCV fetch failed: ' + resp.status);
-    script = await resp.text();
-    await cache.put(CV_URL, new Response(script, { headers: { 'Content-Type': 'text/javascript' } }));
-    self.postMessage({ type: 'cv_download_done' });
-  }
-  // Execute in worker scope
-  eval(script); // eslint-disable-line no-eval
-  await new Promise((res, rej) => {
-    const t = Date.now();
-    const check = () => {
-      if (typeof cv !== 'undefined' && cv.Mat) { cvReady = true; res(); }
-      else if (Date.now()-t > 15000) rej(new Error('OpenCV init timeout'));
-      else setTimeout(check, 100);
-    };
-    check();
-  });
-  return true;
-}
-
-async function denoiseNLM(rgba, w, h, strength) {
-  await ensureOpenCV();
-  const h_val = Math.round(5 + strength * 10);  // filter strength 5..15
-  const src = cv.matFromArray(h, w, cv.CV_8UC4, rgba);
-  const rgb = new cv.Mat();
-  cv.cvtColor(src, rgb, cv.COLOR_RGBA2RGB);
-  const dst = new cv.Mat();
-  cv.fastNlMeansDenoisingColored(rgb, dst, h_val, h_val, 7, 21);
-  const out = new Uint8ClampedArray(w * h * 4);
-  const dstData = dst.data;
-  for (let i = 0; i < w * h; i++) {
-    out[i*4]   = dstData[i*3];
-    out[i*4+1] = dstData[i*3+1];
-    out[i*4+2] = dstData[i*3+2];
-    out[i*4+3] = 255;
-  }
-  src.delete(); rgb.delete(); dst.delete();
-  return out;
-}
-
 function bilinearResize(rgba, sw, sh, dw, dh) {
   const out = new Uint8ClampedArray(dw * dh * 4);
   for (let y = 0; y < dh; y++) {
@@ -896,18 +841,18 @@ function upscaleJS(rgba, w, h) {
   return { data: bilinearResize(rgba, w, h, w*2, h*2), width: w*2, height: h*2 };
 }
 
-self.onmessage = async function(e) {
+self.onmessage = function(e) {
   const { op, rgba, width, height, params } = e.data;
   try {
     let result;
     if (op === 'sharpen')   result = { data: sharpenJS(rgba, width, height, params.strength), width, height };
     if (op === 'normalize') result = { data: normalizeJS(rgba, width, height, params.clip), width, height };
     if (op === 'denoise') {
-      if (params.mode === 'hq') {
-        result = { data: await denoiseNLM(rgba, width, height, params.strength), width, height };
-      } else {
-        result = { data: denoiseJS(rgba, width, height, params.strength), width, height };
-      }
+      // Multi-pass guided filter: more passes = stronger denoise, still O(N)
+      const passes = params.passes || 1;
+      let buf = rgba;
+      for (let p = 0; p < passes; p++) buf = denoiseJS(buf, width, height, params.strength);
+      result = { data: buf, width, height };
     }
     if (op === 'upscale')   result = upscaleJS(rgba, width, height);
     self.postMessage({ type: 'done', ...result }, [result.data.buffer]);
@@ -1632,7 +1577,7 @@ function addLayer(label, op, params, resultImageData) {
 
 // ── Param editor popover ──────────────────────────────────────────────
 const TOOL_DEFS = {
-  denoise:   { label: 'Denoise',   params: [{ id:'strength', label:'Strength', min:0.1, max:1, step:0.1, def:0.5 }, { id:'mode', label:'Quality', type:'select', options:[{v:'fast',l:'Fast (Guided Filter)'},{v:'hq',l:'HQ (NLM via OpenCV, ~10MB first use)'}], def:'fast' }], badge:'JS' },
+  denoise:   { label: 'Denoise',   params: [{ id:'strength', label:'Strength', min:0.1, max:1, step:0.1, def:0.5 }, { id:'passes', label:'Passes', min:1, max:4, step:1, def:1 }], badge:'JS' },
   sharpen:   { label: 'Sharpen',   params: [{ id:'strength', label:'Strength', min:0.1, max:2,  step:0.1, def:0.6 }], badge:'JS' },
   normalize: { label: 'Normalize', params: [{ id:'clip',     label:'Clip %',   min:0,   max:5,  step:0.5, def:1   }], badge:'JS' },
   upscale:   { label: 'Upscale 2\u00d7', params: [], badge:'AI', note:'Doubles resolution using Real-ESRGAN. Downloads once (~5MB), stays cached.' },
@@ -1743,8 +1688,6 @@ function _runInWorker(op, params, label, srcImageData) {
 
   ew.onmessage = e => {
     const d = e.data;
-    if (d.type === 'cv_download_start') { setStatus('Downloading OpenCV.js (~10MB, once)…', ''); return; }
-    if (d.type === 'cv_download_done')  { setStatus('OpenCV ready — denoising…', ''); return; }
     if (d.type === 'error') { setStatus('Error: ' + d.message, 'err'); setToolsBusy(false); ew.terminate(); return; }
     if (d.type === 'done') {
       const resultData = new ImageData(new Uint8ClampedArray(d.data), d.width, d.height);
@@ -1835,11 +1778,14 @@ function initPipeline(imgData) {
 
 document.getElementById('btn-reset-pipeline').addEventListener('click', () => {
   if (!originalImageData) return;
-  layers = [{ label: 'Original', op: null, params: null, imageData: originalImageData, enabled: true }];
-  stackImageData = originalImageData;
-  applyMaps({ albedo: imgDataToDataURL(originalImageData) });
+  // Flatten: composite becomes the new base, all layers collapsed into one
+  const composite = getComposite();
+  originalImageData = composite;
+  stackImageData = composite;
+  layers = [{ label: 'Original (flattened)', op: null, params: null, imageData: composite, enabled: true }];
+  applyMaps({ albedo: imgDataToDataURL(composite) });
   updateLayerListUI();
-  setStatus('Flattened to original', '');
+  setStatus('Layers flattened into new base ✔', 'ok');
 });
 
 document.getElementById('btn-dl-flattened').addEventListener('click', () => {
