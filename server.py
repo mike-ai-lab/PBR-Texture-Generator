@@ -1,7 +1,7 @@
 """
 PBR Texture Generator — Flask backend
 """
-import os, base64, threading, webbrowser, zipfile, io, json
+import os, base64, threading, webbrowser, zipfile, io, json, urllib.request
 from flask import Flask, request, jsonify, send_from_directory, send_file, Response
 from src.image_processing import process_texture
 
@@ -12,8 +12,24 @@ UPLOADS_DIR = os.path.normpath(os.path.join(OUTPUT_DIR, "_uploads"))
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 
-@app.route("/")
-def index():
+OPENCV_JS_PATH = os.path.join(ROOT, "assets", "opencv.js")
+OPENCV_JS_URL  = "https://docs.opencv.org/4.9.0/opencv.js"
+
+
+@app.route("/opencv.js")
+def serve_opencv():
+    """Serve OpenCV.js locally — downloads once and caches to disk."""
+    if not os.path.isfile(OPENCV_JS_PATH):
+        try:
+            req = urllib.request.Request(OPENCV_JS_URL, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = r.read()
+            os.makedirs(os.path.dirname(OPENCV_JS_PATH), exist_ok=True)
+            with open(OPENCV_JS_PATH, "wb") as f:
+                f.write(data)
+        except Exception as e:
+            return f"Failed to fetch OpenCV.js: {e}", 502
+    return send_file(OPENCV_JS_PATH, mimetype="text/javascript")
     return send_from_directory(ROOT, "index.html")
 
 
