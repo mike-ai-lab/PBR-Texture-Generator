@@ -98,7 +98,21 @@ select:focus{border-color:#702af8}
 .map-toggle:hover:not(.active){border-color:#4a4f6a;color:#8892a4}
 #btn-sm-preview{width:100%;padding:7px;margin-bottom:6px;background:transparent;border:1px solid #702af8;color:#a78bfa;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s}
 #btn-sm-preview:hover{background:rgba(112,42,248,.12)}
-/* Pipeline / Layers */
+/* Card containers for grouped controls */
+.card{background:#111218;border:1px solid #2d2f3d;border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.card:last-child{margin-bottom:0}
+.card-label{font-size:9px;font-weight:700;letter-spacing:1.2px;color:#475569;text-transform:uppercase;margin-bottom:10px}
+.sub-divider{height:1px;background:rgba(255,255,255,.04);margin:10px 0}
+/* toggle row */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.toggle-row span{font-size:11px;color:#94a3b8}
+/* pill toggle switch */
+.pill-switch{position:relative;width:36px;height:20px;flex-shrink:0}
+.pill-switch input{opacity:0;width:0;height:0;position:absolute}
+.pill-switch-track{position:absolute;inset:0;background:#1e2030;border-radius:10px;transition:.2s;cursor:pointer}
+.pill-switch input:checked+.pill-switch-track{background:#702af8}
+.pill-switch-track::after{content:'';position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;top:3px;left:3px;transition:.2s}
+.pill-switch input:checked+.pill-switch-track::after{transform:translateX(16px)}
 .pipe-tools{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
 .pipe-tool-btn{flex:1;min-width:60px;padding:6px 4px;font-size:9px;font-weight:700;background:#111218;border:1px solid #2d2f3d;color:#6b7280;border-radius:6px;cursor:pointer;text-align:center;transition:.15s}
 .pipe-tool-btn:hover{border-color:#702af8;color:#a78bfa}
@@ -200,41 +214,50 @@ select:focus{border-color:#702af8}
   </div>
   <div class="section">
     <div class="sec-title">Generation Settings</div>
-    <div class="ctrl">
-      <div class="ctrl-row"><span>Normal Strength</span><b id="vns">10</b></div>
-      <input type="range" id="ns" min="1" max="30" step="1" value="10">
-    </div>
-    <div class="ctrl">
-      <div class="ctrl-row"><span>Roughness Alpha</span><b id="vra">0.80</b></div>
-      <input type="range" id="ra" min="0.1" max="2.0" step="0.05" value="0.8">
-    </div>
-    <div class="ctrl">
-      <div class="ctrl-row"><span>Roughness Offset</span><b id="vrb">50</b></div>
-      <input type="range" id="rb" min="-100" max="100" step="1" value="50">
-    </div>
-    <div class="ctrl">
-      <div class="ctrl-row"><span>AO Intensity</span><b id="vaogen">1.5</b></div>
-      <input type="range" id="aogen" min="0.5" max="3.0" step="0.1" value="1.5">
-    </div>
-    <div class="ctrl" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <span style="font-size:12px;color:#94a3b8">Make Seamless</span>
-      <input type="checkbox" id="chk-seamless" style="width:15px;height:15px;accent-color:#4f8ef7;cursor:pointer">
-    </div>
-    <div id="seamless-opts" style="display:none">
-      <button id="btn-seamless-only" disabled>⬡ Make Seamless Only</button>
-      <button id="btn-sm-preview">⬡ Preview Seams &amp; Blend Zone</button>
+    <div class="card">
+      <div class="card-label">Map Parameters</div>
       <div class="ctrl">
-        <div class="ctrl-row"><span>Blend Width</span><b id="vblend">0.25</b></div>
-        <input type="range" id="blend-ratio" min="0.01" max="0.50" step="0.01" value="0.25">
+        <div class="ctrl-row"><span>Normal Strength</span><b id="vns">10</b></div>
+        <input type="range" id="ns" min="1" max="30" step="1" value="10">
       </div>
       <div class="ctrl">
-        <div class="ctrl-row"><span>Working Size</span></div>
-        <select id="work-size">
-          <option value="256">256 px — fastest</option>
-          <option value="512" selected>512 px — balanced</option>
-          <option value="768">768 px — higher detail</option>
-          <option value="1024">1024 px — best quality</option>
-        </select>
+        <div class="ctrl-row"><span>Roughness Alpha</span><b id="vra">0.80</b></div>
+        <input type="range" id="ra" min="0.1" max="2.0" step="0.05" value="0.8">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-row"><span>Roughness Offset</span><b id="vrb">50</b></div>
+        <input type="range" id="rb" min="-100" max="100" step="1" value="50">
+      </div>
+      <div class="ctrl" style="margin-bottom:0">
+        <div class="ctrl-row"><span>AO Intensity</span><b id="vaogen">1.5</b></div>
+        <input type="range" id="aogen" min="0.5" max="3.0" step="0.1" value="1.5">
+      </div>
+    </div>
+    <div class="card">
+      <div class="toggle-row">
+        <span style="font-size:11px;font-weight:600;color:#c4b5fd">Make Seamless</span>
+        <label class="pill-switch">
+          <input type="checkbox" id="chk-seamless">
+          <div class="pill-switch-track"></div>
+        </label>
+      </div>
+      <div id="seamless-opts" style="display:none">
+        <div class="sub-divider"></div>
+        <button id="btn-seamless-only" disabled>⬡ Make Seamless Only</button>
+        <button id="btn-sm-preview">⬡ Preview Seams &amp; Blend Zone</button>
+        <div class="ctrl" style="margin-top:8px">
+          <div class="ctrl-row"><span>Blend Width</span><b id="vblend">0.25</b></div>
+          <input type="range" id="blend-ratio" min="0.01" max="0.50" step="0.01" value="0.25">
+        </div>
+        <div class="ctrl" style="margin-bottom:0">
+          <div class="ctrl-row" style="margin-bottom:6px"><span>Working Size</span></div>
+          <select id="work-size">
+            <option value="256">256 px — fastest</option>
+            <option value="512" selected>512 px — balanced</option>
+            <option value="768">768 px — higher detail</option>
+            <option value="1024">1024 px — best quality</option>
+          </select>
+        </div>
       </div>
     </div>
     <button id="btn-generate" disabled>Generate Maps</button>
@@ -242,33 +265,37 @@ select:focus{border-color:#702af8}
   </div>
   <!-- ── Processing Pipeline ─────────────────────────────────────── -->
   <div class="section" id="section-pipeline">
-    <div class="sec-title">Layers</div>
-    <!-- Tool buttons -->
-    <div class="pipe-tools">
-      <button class="pipe-tool-btn" id="ptool-denoise" data-op="denoise" disabled>Denoise<br><span style="font-size:8px;color:#702af8">AI</span></button>
-      <button class="pipe-tool-btn" id="ptool-sharpen" data-op="sharpen" disabled>Sharpen</button>
-      <button class="pipe-tool-btn" id="ptool-normalize" data-op="normalize" disabled>Normalize</button>
-      <button class="pipe-tool-btn" id="ptool-upscale" data-op="upscale" disabled>Upscale 2×<br><span style="font-size:8px;color:#702af8">AI</span></button>
-    </div>
-    <!-- Param editor (shared popover, shown below active tool) -->
-    <div id="pipe-param-editor" class="layer-edit-wrap">
-      <div id="ppe-inner"></div>
-      <div style="display:flex;gap:6px;margin-top:8px">
-        <button id="ppe-apply" style="flex:1;padding:7px;background:#702af8;color:#fff;border:none;border-radius:7px;font-size:10px;font-weight:700;cursor:pointer">Apply Layer</button>
-        <button id="ppe-cancel" style="padding:7px 12px;background:transparent;color:#4a4f6a;border:1px solid #2d2f3d;border-radius:7px;font-size:10px;cursor:pointer">Cancel</button>
+    <div class="sec-title">Texture Pipeline</div>
+    <div class="card">
+      <div class="card-label">AI &amp; Processing Tools</div>
+      <div class="pipe-tools">
+        <button class="pipe-tool-btn" id="ptool-denoise" data-op="denoise" disabled>Denoise<br><span style="font-size:8px;color:#702af8">AI</span></button>
+        <button class="pipe-tool-btn" id="ptool-sharpen" data-op="sharpen" disabled>Sharpen</button>
+        <button class="pipe-tool-btn" id="ptool-normalize" data-op="normalize" disabled>Normalize</button>
+        <button class="pipe-tool-btn" id="ptool-upscale" data-op="upscale" disabled>Upscale 2×<br><span style="font-size:8px;color:#702af8">AI</span></button>
+      </div>
+      <div id="pipe-param-editor" class="layer-edit-wrap">
+        <div id="ppe-inner"></div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button id="ppe-apply" style="flex:1;padding:7px;background:#702af8;color:#fff;border:none;border-radius:7px;font-size:10px;font-weight:700;cursor:pointer">Apply Layer</button>
+          <button id="ppe-cancel" style="padding:7px 12px;background:transparent;color:#4a4f6a;border:1px solid #2d2f3d;border-radius:7px;font-size:10px;cursor:pointer">Cancel</button>
+        </div>
       </div>
     </div>
-    <!-- Layer list (Photoshop style, top = most recent) -->
-    <div id="layer-list">
-      <div class="layer-row" id="layer-original">
-        <svg class="layer-eye on" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg>
-        <span class="layer-name">Original</span>
-        <span class="layer-params" style="color:#3a3f5a">base</span>
+    <div class="card">
+      <div class="card-label">Layers</div>
+      <div id="layer-list">
+        <div class="layer-row" id="layer-original">
+          <svg class="layer-eye on" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg>
+          <span class="layer-name">Original</span>
+          <span class="layer-params" style="color:#3a3f5a">base</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:4px">
+        <button id="btn-reset-pipeline" style="flex:1;padding:7px;background:transparent;border:1px solid #2d2f3d;color:#4a4f6a;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s;display:none">↩ Flatten</button>
+        <button id="btn-dl-flattened" style="flex:1;padding:7px;background:transparent;border:1px solid #702af8;color:#a78bfa;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s;display:none">↓ Export</button>
       </div>
     </div>
-    <button id="btn-reset-pipeline" style="width:100%;padding:7px;background:transparent;border:1px solid #2d2f3d;color:#4a4f6a;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s;display:none">↩ Flatten to Original</button>
-    <button id="btn-dl-flattened" style="width:100%;padding:7px;margin-top:5px;background:transparent;border:1px solid #702af8;color:#a78bfa;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s;display:none">↓ Download Flattened Texture</button>
-    <!-- Persistent AI error log — never auto-hides -->
     <div id="ai-error-log" style="display:none;margin-top:8px;padding:8px 10px;background:#1a0a0a;border:1px solid #7f1d1d;border-radius:7px;font-size:10px;color:#fca5a5;line-height:1.5;word-break:break-all;white-space:pre-wrap"></div>
   </div>
   <!-- Compare modal -->
@@ -292,71 +319,86 @@ select:focus{border-color:#702af8}
   </div>
   <div class="section">
     <div class="sec-title">Output Maps</div>
-    <div class="map-pill" id="pill-alb"><span>Albedo</span><span class="pill-icon">—</span></div>
-    <div class="map-pill" id="pill-nrm"><span>Normal</span><span class="pill-icon">—</span></div>
-    <div class="map-pill" id="pill-rgh"><span>Roughness</span><span class="pill-icon">—</span></div>
-    <div class="map-pill" id="pill-ao"><span>Ambient Occ.</span><span class="pill-icon">—</span></div>
-    <div id="progress-wrap">
-      <div id="progress-bar-outer"><div id="progress-bar"></div></div>
-      <div id="progress-label"></div>
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="map-pill" id="pill-alb"><span>Albedo</span><span class="pill-icon">—</span></div>
+        <div class="map-pill" id="pill-nrm"><span>Normal</span><span class="pill-icon">—</span></div>
+        <div class="map-pill" id="pill-rgh"><span>Roughness</span><span class="pill-icon">—</span></div>
+        <div class="map-pill" id="pill-ao"><span>Ambient Occ.</span><span class="pill-icon">—</span></div>
+      </div>
+      <div id="progress-wrap" style="margin-top:10px">
+        <div id="progress-bar-outer"><div id="progress-bar"></div></div>
+        <div id="progress-label"></div>
+      </div>
     </div>
-    <button id="btn-dl-all" style="width:100%;margin-top:8px;padding:8px;background:transparent;border:1px solid #2d3748;color:#64748b;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;transition:.15s" disabled>&#8595; Download All Maps (ZIP)</button>
+    <button id="btn-dl-all" style="width:100%;padding:8px;background:transparent;border:1px solid #2d3748;color:#64748b;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;transition:.15s" disabled>&#8595; Download All Maps (ZIP)</button>
   </div>
   <div class="section" id="section-3d-controls">
     <div class="sec-title">3D Preview Controls</div>
-    <div style="margin-bottom:12px">
-      <div class="ctrl-row" style="margin-bottom:6px"><span>Active Maps</span><span style="font-size:10px;color:#475569">click to toggle</span></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="map-toggle active" id="tog-albedo" data-map="albedo">Albedo</button>
-        <button class="map-toggle active" id="tog-normal" data-map="normal">Normal</button>
-        <button class="map-toggle active" id="tog-roughness" data-map="roughness">Roughness</button>
-        <button class="map-toggle active" id="tog-ao" data-map="ao">AO</button>
+
+    <!-- Active maps + material -->
+    <div class="card">
+      <div class="card-label">Material</div>
+      <div style="margin-bottom:10px">
+        <div class="ctrl-row" style="margin-bottom:6px"><span>Active Maps</span><span style="font-size:10px;color:#475569">tap to toggle</span></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          <button class="map-toggle active" id="tog-albedo" data-map="albedo">Albedo</button>
+          <button class="map-toggle active" id="tog-normal" data-map="normal">Normal</button>
+          <button class="map-toggle active" id="tog-roughness" data-map="roughness">Roughness</button>
+          <button class="map-toggle active" id="tog-ao" data-map="ao">AO</button>
+        </div>
       </div>
-    </div>
-    <div class="ctrl">
-      <div class="ctrl-row"><span>Tiling</span><b id="vtile">2.0x</b></div>
-      <input type="range" id="tile" min="0.5" max="10" step="0.5" value="2">
-    </div>
-    <div class="ctrl">
-      <div class="ctrl-row"><span>Normal Strength (preview)</span><b id="vnsc">1.0</b></div>
-      <input type="range" id="nsc" min="0" max="3" step="0.1" value="1">
-    </div>
-    <div class="ctrl">
-      <div class="ctrl-row"><span>AO Intensity (preview)</span><b id="vaoi">0.6</b></div>
-      <input type="range" id="aoi" min="0" max="2" step="0.1" value="0.6">
-    </div>
-    <div class="ctrl">
-      <div class="ctrl-row"><span>Opacity</span><span style="font-size:10px;color:#475569">glass/refraction</span></div>
-      <div class="ctrl-row"><b id="vopacity">1.0</b></div>
-      <input type="range" id="opacity-slider" min="0" max="1" step="0.01" value="1">
-    </div>
-    <div id="manual-light-ctrls">
+      <div class="sub-divider"></div>
       <div class="ctrl">
-        <div class="ctrl-row"><span>Light Intensity</span><b id="vli">3.0</b></div>
-        <input type="range" id="li" min="0" max="8" step="0.1" value="3">
+        <div class="ctrl-row"><span>Tiling</span><b id="vtile">2.0x</b></div>
+        <input type="range" id="tile" min="0.5" max="10" step="0.5" value="2">
       </div>
       <div class="ctrl">
-        <div class="ctrl-row"><span>Light X</span><b id="vlx">45</b></div>
-        <input type="range" id="lx" min="-180" max="180" step="1" value="45">
+        <div class="ctrl-row"><span>Normal Strength</span><b id="vnsc">1.0</b></div>
+        <input type="range" id="nsc" min="0" max="3" step="0.1" value="1">
       </div>
       <div class="ctrl">
-        <div class="ctrl-row"><span>Light Y</span><b id="vly">45</b></div>
-        <input type="range" id="ly" min="-180" max="180" step="1" value="45">
+        <div class="ctrl-row"><span>AO Intensity</span><b id="vaoi">0.6</b></div>
+        <input type="range" id="aoi" min="0" max="2" step="0.1" value="0.6">
+      </div>
+      <div class="ctrl" style="margin-bottom:0">
+        <div class="ctrl-row"><span>Opacity</span><span style="font-size:10px;color:#475569">glass/refraction</span></div>
+        <div class="ctrl-row"><b id="vopacity">1.0</b></div>
+        <input type="range" id="opacity-slider" min="0" max="1" step="0.01" value="1">
       </div>
     </div>
-    <div id="hdri-intensity-ctrl" style="opacity:0.35;pointer-events:none">
-      <div class="ctrl">
-        <div class="ctrl-row"><span>HDRI Intensity</span><b id="vhdrii">0.6</b></div>
-        <input type="range" id="hdri-intensity" min="0.1" max="6" step="0.1" value="0.6">
+
+    <!-- Lighting -->
+    <div class="card">
+      <div class="card-label">Lighting</div>
+      <div id="manual-light-ctrls">
+        <div class="ctrl">
+          <div class="ctrl-row"><span>Intensity</span><b id="vli">3.0</b></div>
+          <input type="range" id="li" min="0" max="8" step="0.1" value="3">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-row"><span>Angle X</span><b id="vlx">45</b></div>
+          <input type="range" id="lx" min="-180" max="180" step="1" value="45">
+        </div>
+        <div class="ctrl" style="margin-bottom:0">
+          <div class="ctrl-row"><span>Angle Y</span><b id="vly">45</b></div>
+          <input type="range" id="ly" min="-180" max="180" step="1" value="45">
+        </div>
       </div>
-      <div class="ctrl">
-        <div class="ctrl-row"><span>Exposure</span><b id="vexp">0.9</b></div>
-        <input type="range" id="exposure" min="0.5" max="5" step="0.1" value="0.9">
+      <div id="hdri-intensity-ctrl" style="opacity:0.35;pointer-events:none">
+        <div class="ctrl">
+          <div class="ctrl-row"><span>HDRI Intensity</span><b id="vhdrii">0.6</b></div>
+          <input type="range" id="hdri-intensity" min="0.1" max="6" step="0.1" value="0.6">
+        </div>
+        <div class="ctrl" style="margin-bottom:0">
+          <div class="ctrl-row"><span>Exposure</span><b id="vexp">0.9</b></div>
+          <input type="range" id="exposure" min="0.5" max="5" step="0.1" value="0.9">
+        </div>
       </div>
     </div>
   </div>
-  <div style="padding:12px 18px;font-size:10px;color:#475569;line-height:1.9;margin-top:auto">
-    Left drag: Rotate &nbsp;|&nbsp; Right drag: Pan &nbsp;|&nbsp; Scroll: Zoom
+  <div style="padding:10px 16px 14px;font-size:10px;color:#475569;text-align:center;line-height:1.9">
+    Drag: Rotate · Right drag: Pan · Scroll: Zoom
   </div>
 </div>
 
@@ -954,6 +996,7 @@ const rim  = new THREE.DirectionalLight(0xddeeff, 1.0); rim.position.set(-5, 5, 
 const fill = new THREE.DirectionalLight(0xffffff, 0.6);  fill.position.set(0, -5, 3); scene.add(fill);
 
 // Resize: always sync camera aspect (free), only resize buffer when requested
+let _rw = 0, _rh = 0;
 function onResize(updateBuffer = true) {
   const cw = document.getElementById('canvas-wrap');
   if (!cw) return;
@@ -961,7 +1004,10 @@ function onResize(updateBuffer = true) {
   if (!w || !h) return;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  if (updateBuffer) renderer.setSize(w, h, true);
+  if (updateBuffer && (w !== _rw || h !== _rh)) {
+    _rw = w; _rh = h;
+    renderer.setSize(w, h, true);
+  }
 }
 onResize();
 window.addEventListener('resize', onResize);
@@ -1087,7 +1133,14 @@ function applyMaps(maps) {
       tex.repeat.set(t, t);
       loadedMaps[key] = tex;
       const tog = document.getElementById('tog-'+key);
-      if (!tog || tog.classList.contains('active')) mat[propMap[key]] = tex;
+      if (!tog || tog.classList.contains('active')) {
+        mat[propMap[key]] = tex;
+        if (key === 'normal') {
+          const nsc = parseFloat(document.getElementById('nsc').value) || 1;
+          mat.normalScale?.set(nsc, nsc);
+        }
+        if (key === 'ao') mat.aoMapIntensity = parseFloat(document.getElementById('aoi').value) || 0.6;
+      }
       mat.needsUpdate = true; requestRender(4);
       if (++loaded === keys.length) { mat.needsUpdate = true; requestRender(8); }
     });
@@ -1290,8 +1343,10 @@ function setViewMode(mode) {
 document.getElementById('btn-3d').onclick = () => setViewMode('3d');
 document.getElementById('btn-2d').onclick = () => setViewMode('2d');
 
-// ── Mobile shrink-on-scroll ───────────────────────────────────────────
+// ── Mobile shrink-on-scroll (mobile only — skipped entirely on desktop) ──
 (function() {
+  if (window.innerWidth > 768) return;
+
   const panel      = document.getElementById('panel');
   const canvasWrap = document.getElementById('canvas-wrap');
   if (!panel || !canvasWrap) return;
@@ -1307,10 +1362,9 @@ document.getElementById('btn-2d').onclick = () => setViewMode('2d');
     if (shouldShrink === isShrunk) return;
     isShrunk = shouldShrink;
 
-    // Trigger smooth CSS height transition
     canvasWrap.style.height = isShrunk ? SHRUNK : EXPANDED;
 
-    // Discrete buffer resizes — camera.aspect stays live via animationLoop, buffer snaps cleanly
+    // Only sync buffer — camera.aspect stays live via animationLoop each frame
     onResize(true);
     setTimeout(() => onResize(true), 120);
     setTimeout(() => onResize(true), 250);
@@ -1347,17 +1401,18 @@ function loadFile(file) {
     loadedImageData = c.getContext('2d').getImageData(0, 0, c.width, c.height);
     initPipeline(loadedImageData);
     genBtn.disabled = false;
-    setStatus('Ready — click Generate Maps', '');
+    setStatus('Ready — adjust sliders to preview live', '');
     const smChecked = document.getElementById('chk-seamless').checked;
     document.getElementById('seamless-opts').style.display = smChecked ? '' : 'none';
     document.getElementById('btn-seamless-only').style.display = smChecked ? '' : 'none';
     document.getElementById('btn-seamless-only').disabled = false;
 
-    // Apply raw texture to shader immediately — no need to wait for generation
+    // Apply raw texture to shader immediately, then kick off live preview
     const rawDataUrl = c.toDataURL('image/png');
-    const rawMaps = { albedo: rawDataUrl };
-    applyMaps(rawMaps);
+    applyMaps({ albedo: rawDataUrl });
     document.getElementById('canvas-hint').style.display = 'none';
+    // Auto-generate preview maps so 3D shader shows PBR on load
+    runLivePreview();
   };
   img.onerror = () => setStatus('Failed to load image', 'err');
   img.src = thumbObjectURL;
@@ -1469,10 +1524,84 @@ genBtn.addEventListener('click', () => {
   };
 });
 
-// generation slider labels
+// generation slider labels + live preview
+let _previewDebounce = null;
+let _previewWorker = null;
+
+function runLivePreview() {
+  if (!loadedImageData) return;
+  clearTimeout(_previewDebounce);
+  _previewDebounce = setTimeout(() => {
+    if (_previewWorker) { _previewWorker.terminate(); _previewWorker = null; }
+    setStatus('Previewing…', '');
+    const srcData = stackImageData || loadedImageData;
+    // Copy data — do NOT transfer the original buffer
+    const rgba = new Uint8ClampedArray(srcData.data.buffer.slice(0));
+    _previewWorker = new Worker(URL.createObjectURL(
+      new Blob([document.getElementById('worker-src').textContent], { type: 'text/javascript' })
+    ));
+    _previewWorker.postMessage({
+      rgba,
+      width:            srcData.width,
+      height:           srcData.height,
+      normalStrength:   +document.getElementById('ns').value,
+      roughAlpha:       +document.getElementById('ra').value,
+      roughBeta:        +document.getElementById('rb').value,
+      aoAlpha:          +document.getElementById('aogen').value,
+      makeSeamlessFlag: false,
+      blendRatio:       0.25,
+      workSize:         512,
+    }, [rgba.buffer]);
+    _previewWorker.onerror = err => {
+      setStatus('Preview error', 'err');
+      _previewWorker = null;
+    };
+    _previewWorker.onmessage = e => {
+      if (e.data.type !== 'done') return;
+      const d = e.data;
+      const texLoader = new THREE.TextureLoader();
+      const load = (data, colorSpace) => new Promise(res => {
+        const url = rgbaToDataURL(new Uint8ClampedArray(data), d.width, d.height);
+        texLoader.load(url, tex => {
+          tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+          const t = parseFloat(document.getElementById('tile').value) || 1;
+          tex.repeat.set(t, t);
+          if (colorSpace) tex.colorSpace = colorSpace;
+          res(tex);
+        });
+      });
+      Promise.all([
+        load(d.albedo,    THREE.SRGBColorSpace),
+        load(d.normal,    null),
+        load(d.roughness, null),
+        load(d.ao,        null),
+      ]).then(([albTex, nrmTex, rghTex, aoTex]) => {
+        ['map','normalMap','roughnessMap','aoMap'].forEach(k => {
+          if (mat[k]?.isTexture) mat[k].dispose();
+        });
+        mat.map          = albTex;  loadedMaps.albedo    = albTex;
+        mat.normalMap    = nrmTex;  loadedMaps.normal    = nrmTex;
+        mat.roughnessMap = rghTex;  loadedMaps.roughness = rghTex;
+        mat.aoMap        = aoTex;   loadedMaps.ao        = aoTex;
+        mat.roughness    = 1.0;
+        mat.color.set(0xffffff);
+        const nsc = parseFloat(document.getElementById('nsc').value) || 1;
+        mat.normalScale?.set(nsc, nsc);
+        mat.aoMapIntensity = parseFloat(document.getElementById('aoi').value) || 0.6;
+        mat.needsUpdate = true;
+        setStatus('Live preview ✓', 'ok');
+        _previewWorker = null;
+      });
+    };
+  }, 300);
+}
+
 [['ns','vns',0],['ra','vra',2],['rb','vrb',0],['aogen','vaogen',1]].forEach(([id,vid,d]) => {
   const el=document.getElementById(id), vl=document.getElementById(vid);
-  if(el&&vl) el.addEventListener('input', ()=>vl.textContent=parseFloat(el.value).toFixed(d));
+  if(el&&vl) el.addEventListener('input', () => {
+    vl.textContent = parseFloat(el.value).toFixed(d);
+    runLivePreview();
+  });
 });
 
 // Seamless toggle
