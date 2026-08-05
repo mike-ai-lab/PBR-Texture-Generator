@@ -1311,23 +1311,38 @@ document.getElementById('btn-2d').onclick = () => setViewMode('2d');
     if (typeof renderer !== 'undefined') {
       renderer.setSize(w, h, false);
       _lastW = w; _lastH = h;
-      // Force an immediate render after resize clears the buffer
-      renderer.render(scene, camera);
     }
   }
 
   let lastShrunk = false;
+  let syncTimer = null;
   panel.addEventListener('scroll', () => {
     const shrink = panel.scrollTop > THRESHOLD;
-    if (shrink === lastShrunk) return; // no change, skip
+    if (shrink === lastShrunk) return;
     lastShrunk = shrink;
 
+    // Freeze the canvas at its current pixel size so it doesn't stretch during transition
+    const currentH = canvasWrap.clientHeight;
+    const currentW = canvasWrap.clientWidth;
+    renderer.domElement.style.width  = currentW + 'px';
+    renderer.domElement.style.height = currentH + 'px';
+    renderer.domElement.style.position = 'absolute';
+    renderer.domElement.style.top  = '0';
+    renderer.domElement.style.left = '0';
+
+    // CSS transition animates the container height
     canvasWrap.style.height = shrink ? SHRUNK_H : EXPANDED_H;
 
-    // Sync renderer after CSS transition settles (transition is 0.32s)
-    setTimeout(syncRendererSize, 50);
-    setTimeout(syncRendererSize, 200);
-    setTimeout(syncRendererSize, 370);
+    // After transition ends, snap renderer to final size and restore fluid CSS
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => {
+      renderer.domElement.style.width  = '100%';
+      renderer.domElement.style.height = '100%';
+      renderer.domElement.style.position = '';
+      renderer.domElement.style.top  = '';
+      renderer.domElement.style.left = '';
+      syncRendererSize();
+    }, 350);
   }, { passive: true });
 })();
 
