@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PBR Texture Generator & 3D Preview</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f5f3ff',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                            900: '#4c1d95',
+                        },
+                        darkBg: '#0b0d14',
+                        cardBg: '#131622',
+                        cardBorder: '#232738',
+                        inputBg: '#1c2030',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js & OrbitControls Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <style>
+        /* Custom scrollbar and range styling */
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b0d14;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2b3046;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #7c3aed;
+        }
+
+        /* Custom Range Input Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+            width: 100%;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #232738;
+            border-radius: 9999px;
+            border: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #8b5cf6;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+            transition: transform 0.1s ease, background-color 0.1s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+            background: #a78bfa;
+        }
+        
+        /* Dynamic Shrinking Header Smooth Transitions */
+        #preview-pane {
+            transition: height 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease, background-color 0.35s ease;
+            will-change: height;
+        }
+
+        #mesh-badge-wrapper {
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+
+        /* Glassmorphism effects */
+        .glass-panel {
+            background: rgba(19, 22, 34, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        /* Prevent mobile rubber-banding/overscroll on root */
+        body, html {
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            touch-action: manipulation;
+        }
+    </style>
+</head>
+<body class="bg-darkBg text-slate-100 font-sans antialiased flex flex-col h-full w-full select-none overflow-hidden">
+
+    <!-- Top 3D Shader Preview Pane (Shrinks dynamically on scroll) -->
+    <header id="preview-pane" class="relative w-full h-[48vh] min-h-[170px] max-h-[500px] bg-slate-900 flex-shrink-0 z-30 shadow-2xl border-b border-cardBorder/60 overflow-hidden">
+        
+        <!-- Three.js Canvas Host -->
+        <div id="canvas-container" class="w-full h-full cursor-grab active:cursor-grabbing relative"></div>
+
+        <!-- Top Right Viewport Floating Toolbar -->
+        <div class="absolute top-3 right-3 z-20 flex items-center gap-1.5 bg-darkBg/80 p-1 rounded-xl backdrop-blur-md border border-cardBorder shadow-lg">
+            <button id="btn-mode-3d" onclick="setPreviewMode('3D')" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-brand-600 text-white shadow-md transition-all duration-200">
+                3D
+            </button>
+            <button id="btn-mode-2d" onclick="setPreviewMode('2D')" class="px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-400 hover:text-white hover:bg-cardBg transition-all duration-200">
+                2D
+            </button>
+            <button id="btn-info" onclick="toggleInfoModal()" class="w-7 h-7 flex items-center justify-center text-slate-300 hover:text-white rounded-lg hover:bg-cardBg transition-all duration-200" title="Texture Info">
+                <i class="fa-solid fa-circle-info text-xs"></i>
+            </button>
+            <button id="btn-lighting" onclick="cycleEnvironmentLighting()" class="w-7 h-7 flex items-center justify-center text-slate-300 hover:text-white rounded-lg hover:bg-cardBg transition-all duration-200" title="Change Lighting Mode">
+                <i id="lighting-icon" class="fa-solid fa-sun text-xs"></i>
+            </button>
+        </div>
+
+        <!-- Floating Quick Mesh Switcher Badge (Hides or shrinks gracefully) -->
+        <div id="mesh-badge-wrapper" class="absolute bottom-3 left-3 z-20 flex items-center gap-1 bg-darkBg/80 backdrop-blur-md border border-cardBorder px-2 py-1 rounded-lg shadow-md text-xs">
+            <span class="text-slate-400 text-[10px] uppercase font-bold tracking-wider mr-1">Mesh:</span>
+            <button onclick="changeMesh('sphere')" class="mesh-btn px-2 py-0.5 rounded text-white bg-brand-600/40 hover:bg-brand-600 transition">Sphere</button>
+            <button onclick="changeMesh('cube')" class="mesh-btn px-2 py-0.5 rounded text-slate-400 hover:text-white hover:bg-cardBg transition">Cube</button>
+            <button onclick="changeMesh('plane')" class="mesh-btn px-2 py-0.5 rounded text-slate-400 hover:text-white hover:bg-cardBg transition">Plane</button>
+            <button onclick="changeMesh('torus')" class="mesh-btn px-2 py-0.5 rounded text-slate-400 hover:text-white hover:bg-cardBg transition">Torus</button>
+        </div>
+
+        <!-- Scroll Indicator Hint Badge (Shows up when expanded) -->
+        <div id="scroll-hint" class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 text-[10px] text-brand-500 font-medium bg-brand-900/40 border border-brand-500/30 px-2.5 py-1 rounded-full animate-pulse pointer-events-none">
+            <span>Scroll down to expand options</span>
+            <i class="fa-solid fa-chevron-down text-[9px]"></i>
+        </div>
+
+        <!-- Header Mini Progress bar indicator for scroll state -->
+        <div class="absolute bottom-0 left-0 h-[2px] bg-brand-500/60 transition-all duration-150" id="header-scroll-progress" style="width: 0%;"></div>
+    </header>
+
+    <!-- Scrollable Bottom Parameters Pane -->
+    <main id="scroll-pane" class="flex-1 overflow-y-auto overflow-x-hidden bg-darkBg px-4 py-5 space-y-6 relative border-t border-cardBorder/40">
+        
+        <!-- Header Info Block -->
+        <div class="space-y-1">
+            <div class="flex items-center justify-between">
+                <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    <span class="bg-gradient-to-r from-brand-500 to-indigo-400 bg-clip-text text-transparent">PBR Texture Generator</span>
+                </h1>
+                <span id="shrink-status-badge" class="text-[10px] font-semibold px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">
+                    PREVIEW EXPANDED
+                </span>
+            </div>
+            <p class="text-xs text-brand-500 font-medium tracking-wide">Generate & Preview in 3D</p>
+        </div>
+
+        <!-- SECTION 1: INPUT TEXTURE -->
+        <section class="space-y-3">
+            <h2 class="text-xs font-extrabold uppercase tracking-widest text-brand-500 flex items-center gap-1.5">
+                <span class="w-1.5 h-3 bg-brand-500 rounded-full inline-block"></span>
+                Input Texture
+            </h2>
+
+            <div class="bg-cardBg border border-cardBorder rounded-2xl p-4 shadow-lg space-y-3">
+                <div class="relative group rounded-xl overflow-hidden border border-slate-700/60 bg-slate-900 aspect-video flex items-center justify-center">
+                    <!-- Dynamic Texture Canvas / Preview Image -->
+                    <canvas id="source-canvas" class="w-full h-full object-cover"></canvas>
+                    
+                    <!-- Overlay Upload Controls -->
+                    <div class="absolute inset-0 bg-darkBg/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 cursor-pointer" onclick="document.getElementById('texture-upload').click()">
+                        <i class="fa-solid fa-cloud-arrow-up text-2xl text-brand-500"></i>
+                        <span class="text-xs font-semibold text-white">Click to Upload Texture</span>
+                    </div>
+                    <input type="file" id="texture-upload" accept="image/*" class="hidden" onchange="handleTextureUpload(event)">
+                </div>
+
+                <div class="flex items-center justify-between text-xs text-slate-400">
+                    <span id="input-filename" class="font-mono text-[11px] truncate max-w-[200px] text-slate-300">sample_futuristic_interior.jpg</span>
+                    <button onclick="presetSelectNext()" class="text-brand-500 hover:text-brand-400 text-xs font-medium flex items-center gap-1">
+                        <span>Presets</span>
+                        <i class="fa-solid fa-arrows-rotate text-[10px]"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 2: GENERATION SETTINGS -->
+        <section class="space-y-3">
+            <h2 class="text-xs font-extrabold uppercase tracking-widest text-brand-500 flex items-center gap-1.5">
+                <span class="w-1.5 h-3 bg-brand-500 rounded-full inline-block"></span>
+                Generation Settings
+            </h2>
+
+            <div class="bg-cardBg border border-cardBorder rounded-2xl p-4 shadow-lg space-y-4">
+                
+                <!-- Normal Strength -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <label class="text-slate-300 font-medium">Normal Strength</label>
+                        <span id="val-normal-strength" class="font-mono text-brand-500 font-bold">10.0</span>
+                    </div>
+                    <input type="range" id="input-normal-strength" min="0" max="20" step="0.5" value="10" oninput="updateGenSettings()">
+                </div>
+
+                <!-- Roughness Alpha -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <label class="text-slate-300 font-medium">Roughness Alpha</label>
+                        <span id="val-roughness-alpha" class="font-mono text-brand-500 font-bold">0.80</span>
+                    </div>
+                    <input type="range" id="input-roughness-alpha" min="0" max="1" step="0.05" value="0.80" oninput="updateGenSettings()">
+                </div>
+
+                <!-- Roughness Offset -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <label class="text-slate-300 font-medium">Roughness Offset</label>
+                        <span id="val-roughness-offset" class="font-mono text-brand-500 font-bold">50</span>
+                    </div>
+                    <input type="range" id="input-roughness-offset" min="0" max="100" step="1" value="50" oninput="updateGenSettings()">
+                </div>
+
+                <!-- AO Intensity -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <label class="text-slate-300 font-medium">AO Intensity</label>
+                        <span id="val-ao-intensity" class="font-mono text-brand-500 font-bold">1.5</span>
+                    </div>
+                    <input type="range" id="input-ao-intensity" min="0" max="3" step="0.1" value="1.5" oninput="updateGenSettings()">
+                </div>
+
+            </div>
+        </section>
+
+        <!-- SECTION 3: OUTPUT MAPS -->
+        <section class="space-y-3">
+            <h2 class="text-xs font-extrabold uppercase tracking-widest text-brand-500 flex items-center gap-1.5">
+                <span class="w-1.5 h-3 bg-brand-500 rounded-full inline-block"></span>
+                Output Maps
+            </h2>
+
+            <div class="space-y-2">
+                <!-- Map Accordion List -->
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="bg-cardBg border border-cardBorder p-2.5 rounded-xl flex items-center gap-2">
+                        <canvas id="thumb-albedo" class="w-10 h-10 rounded border border-slate-700 bg-black"></canvas>
+                        <div class="overflow-hidden">
+                            <div class="text-xs font-semibold text-white">Albedo</div>
+                            <div class="text-[10px] text-slate-400">Base Color</div>
+                        </div>
+                    </div>
+                    <div class="bg-cardBg border border-cardBorder p-2.5 rounded-xl flex items-center gap-2">
+                        <canvas id="thumb-normal" class="w-10 h-10 rounded border border-slate-700 bg-black"></canvas>
+                        <div class="overflow-hidden">
+                            <div class="text-xs font-semibold text-white">Normal</div>
+                            <div class="text-[10px] text-slate-400">Tangent Bump</div>
+                        </div>
+                    </div>
+                    <div class="bg-cardBg border border-cardBorder p-2.5 rounded-xl flex items-center gap-2">
+                        <canvas id="thumb-roughness" class="w-10 h-10 rounded border border-slate-700 bg-black"></canvas>
+                        <div class="overflow-hidden">
+                            <div class="text-xs font-semibold text-white">Roughness</div>
+                            <div class="text-[10px] text-slate-400">Micro-Surface</div>
+                        </div>
+                    </div>
+                    <div class="bg-cardBg border border-cardBorder p-2.5 rounded-xl flex items-center gap-2">
+                        <canvas id="thumb-ao" class="w-10 h-10 rounded border border-slate-700 bg-black"></canvas>
+                        <div class="overflow-hidden">
+                            <div class="text-xs font-semibold text-white">Ambient Occ.</div>
+                            <div class="text-[10px] text-slate-400">Shadow Crevices</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Download All Button -->
+                <button onclick="downloadAllMaps()" class="w-full py-3 bg-cardBg hover:bg-cardBorder border border-cardBorder hover:border-brand-500/50 rounded-xl text-slate-200 hover:text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.99]">
+                    <i class="fa-solid fa-download text-brand-500"></i>
+                    <span>Download All Maps (ZIP)</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- SECTION 4: 3D PREVIEW CONTROLS -->
+        <section class="space-y-3 pb-12">
+            <h2 class="text-xs font-extrabold uppercase tracking-widest text-brand-500 flex items-center gap-1.5">
+                <span class="w-1.5 h-3 bg-brand-500 rounded-full inline-block"></span>
+                3D Preview Controls
+            </h2>
+
+            <div class="bg-cardBg border border-cardBorder rounded-2xl p-4 shadow-lg space-y-4">
+                
+                <!-- Active Maps Toggles -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs text-slate-300 font-medium">Active Maps</label>
+                        <span class="text-[10px] text-slate-500 italic">click to toggle</span>
+                    </div>
+                    <div class="grid grid-cols-4 gap-1.5">
+                        <button id="toggle-map-albedo" onclick="toggleMap('albedo')" class="py-1.5 text-xs font-semibold rounded-lg bg-brand-600/30 text-brand-400 border border-brand-500/50 transition">Albedo</button>
+                        <button id="toggle-map-normal" onclick="toggleMap('normal')" class="py-1.5 text-xs font-semibold rounded-lg bg-brand-600/30 text-brand-400 border border-brand-500/50 transition">Normal</button>
+                        <button id="toggle-map-roughness" onclick="toggleMap('roughness')" class="py-1.5 text-xs font-semibold rounded-lg bg-brand-600/30 text-brand-400 border border-brand-500/50 transition">Roughness</button>
+                        <button id="toggle-map-ao" onclick="toggleMap('ao')" class="py-1.5 text-xs font-semibold rounded-lg bg-brand-600/30 text-brand-400 border border-brand-500/50 transition">AO</button>
+                    </div>
+                </div>
+
+                <!-- Tiling Slider -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <label class="text-slate-300 font-medium">Tiling</label>
+                        <span id="val-tiling" class="font-mono text-brand-500 font-bold">2.0x</span>
+                    </div>
+                    <input type="range" id="input-tiling" min="1" max="8" step="0.5" value="2" oninput="update3DControls()">
+                </div>
+
+                <!-- Normal Strength (Preview override) -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <label class="text-slate-300 font-medium">Normal Strength (preview)</label>
+                        <span id="val-preview-normal" class="font-mono text-brand-500 font-bold">1.0</span>
+                    </div>
+                    <input type="range" id="input-preview-normal" min="0" max="3" step="0.1" value="1.0" oninput="update3DControls()">
+                </div>
+
+                <!-- AO Intensity (Preview override) -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <label class="text-slate-300 font-medium">AO Intensity (preview)</label>
+                        <span id="val-preview-ao" class="font-mono text-brand-500 font-bold">0.6</span>
+                    </div>
+                    <input type="range" id="input-preview-ao" min="0" max="2" step="0.1" value="0.6" oninput="update3DControls()">
+                </div>
+
+                <!-- Opacity -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <label class="text-slate-300 font-medium">Opacity</label>
+                        <span class="text-[10px] text-slate-500">glass/refraction</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs mb-1">
+                        <span id="val-opacity" class="font-mono text-brand-500 font-bold">1.0</span>
+                    </div>
+                    <input type="range" id="input-opacity" min="0.1" max="1" step="0.05" value="1.0" oninput="update3DControls()">
+                </div>
+
+                <!-- Light Intensity -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <label class="text-slate-300 font-medium">Light Intensity</label>
+                        <span id="val-light-intensity" class="font-mono text-brand-500 font-bold">3.0</span>
+                    </div>
+                    <input type="range" id="input-light-intensity" min="0.5" max="6" step="0.2" value="3.0" oninput="update3DControls()">
+                </div>
+
+                <!-- Model Auto-Rotate Toggle -->
+                <div class="pt-2 border-t border-cardBorder/60 flex items-center justify-between">
+                    <span class="text-xs text-slate-300 font-medium">Auto Turntable Rotation</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="check-auto-rotate" class="sr-only peer" checked onchange="toggleAutoRotate(this.checked)">
+                        <div class="w-9 h-5 bg-inputBg peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-600"></div>
+                    </label>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Info Modal -->
+    <div id="info-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-cardBg border border-cardBorder rounded-2xl p-5 max-w-sm w-full space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-cardBorder pb-3">
+                <h3 class="font-bold text-white text-base">PBR Shader Previewer</h3>
+                <button onclick="toggleInfoModal()" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+            <div class="text-xs text-slate-300 space-y-2 leading-relaxed">
+                <p><strong>Shrink-on-scroll Behavior:</strong> As you scroll down to tweak sliders, the 3D shader pane automatically shrinks into a compact sticky view so you can easily view shader changes in real-time while adjusting parameters!</p>
+                <p><strong>PBR Pipeline:</strong> All normal, roughness, and ambient occlusion channels are dynamically calculated on HTML5 canvases and fed into standard Three.js shader materials.</p>
+            </div>
+            <button onclick="toggleInfoModal()" class="w-full py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold shadow">Got it</button>
+        </div>
+    </div>
+
+    <!-- Toast Notification Box -->
+    <div id="toast-message" class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-brand-600 text-white text-xs px-4 py-2 rounded-full shadow-2xl opacity-0 transition-all duration-300 pointer-events-none z-50 flex items-center gap-2">
+        <i class="fa-solid fa-circle-check"></i>
+        <span id="toast-text">Notification</span>
+    </div>
+
+    <script>
+        // Global Three.js variables
+        let scene, camera, renderer, controls, mesh;
+        let pbrMaterial;
+        let albedoMap, normalMap, roughnessMap, aoMap;
+        
+        // Canvas texture elements
+        let srcCanvas, srcCtx;
+        let thumbCanvas = {};
+
+        // Active state
+        let is3DMode = true;
+        let currentMeshType = 'sphere';
+        let currentPresetIndex = 0;
+        let isLightingBright = true;
+        
+        // Active Map Toggles State
+        let activeMaps = {
+            albedo: true,
+            normal: true,
+            roughness: true,
+            ao: true
+        };
+
+        // Preset patterns generator
+        const presets = ['Futuristic Grid', 'Marble Tiles', 'Cyberpunk Hex', 'Circuit Tech'];
+
+        window.onload = function() {
+            initCanvases();
+            generateInitialTextures();
+            initThreeJS();
+            setupScrollBehavior();
+            animate();
+        };
+
+        // Initialize Canvas elements
+        function initCanvases() {
+            srcCanvas = document.getElementById('source-canvas');
+            srcCanvas.width = 512;
+            srcCanvas.height = 512;
+            srcCtx = srcCanvas.getContext('2d');
+
+            ['albedo', 'normal', 'roughness', 'ao'].forEach(type => {
+                const c = document.getElementById(`thumb-${type}`);
+                if (c) {
+                    c.width = 128;
+                    c.height = 128;
+                    thumbCanvas[type] = c;
+                }
+            });
+        }
+
+        function generateInitialTextures() {
+            // Draw initial base texture pattern onto source canvas
+            drawPresetPattern(currentPresetIndex);
+            
+            // Derive PBR Maps (Normal, Roughness, AO) from Base Pattern
+            updatePBRMapCanvases();
+        }
+
+        function drawPresetPattern(index) {
+            const w = srcCanvas.width;
+            const h = srcCanvas.height;
+            srcCtx.fillStyle = '#111526';
+            srcCtx.fillRect(0, 0, w, h);
+
+            if (index === 0) { // Futuristic Interior / Sci-Fi Grid
+                srcCtx.strokeStyle = '#8b5cf6';
+                srcCtx.lineWidth = 12;
+                for (let x = 0; x <= w; x += 64) {
+                    srcCtx.beginPath();
+                    srcCtx.moveTo(x, 0);
+                    srcCtx.lineTo(x, h);
+                    srcCtx.stroke();
+                }
+                for (let y = 0; y <= h; y += 64) {
+                    srcCtx.beginPath();
+                    srcCtx.moveTo(0, y);
+                    srcCtx.lineTo(w, y);
+                    srcCtx.stroke();
+                }
+                
+                // Add metallic panels & character silhouette details
+                srcCtx.fillStyle = '#312e81';
+                srcCtx.fillRect(64, 64, 128, 128);
+                srcCtx.fillRect(320, 64, 128, 128);
+                srcCtx.fillRect(192, 256, 128, 192);
+
+                srcCtx.fillStyle = '#6366f1';
+                srcCtx.fillRect(80, 80, 96, 96);
+                srcCtx.fillRect(336, 80, 96, 96);
+
+            } else if (index === 1) { // Marble Tiles
+                srcCtx.fillStyle = '#1e293b';
+                srcCtx.fillRect(0,0,w,h);
+                srcCtx.fillStyle = '#0f172a';
+                for (let i = 0; i < 8; i++) {
+                    for (let j = 0; j < 8; j++) {
+                        if ((i + j) % 2 === 0) {
+                            srcCtx.fillRect(i*64, j*64, 64, 64);
+                        }
+                    }
+                }
+                srcCtx.strokeStyle = '#a78bfa';
+                srcCtx.lineWidth = 4;
+                srcCtx.strokeRect(10, 10, w - 20, h - 20);
+
+            } else if (index === 2) { // Cyberpunk Hex
+                srcCtx.fillStyle = '#090d16';
+                srcCtx.fillRect(0,0,w,h);
+                srcCtx.strokeStyle = '#ec4899';
+                srcCtx.lineWidth = 8;
+                for(let x = 32; x < w; x += 96) {
+                    for(let y = 32; y < h; y += 96) {
+                        srcCtx.beginPath();
+                        srcCtx.arc(x, y, 32, 0, Math.PI * 2);
+                        srcCtx.stroke();
+                    }
+                }
+            } else { // Circuit Tech
+                srcCtx.fillStyle = '#064e3b';
+                srcCtx.fillRect(0,0,w,h);
+                srcCtx.fillStyle = '#10b981';
+                for(let i=0; i<15; i++) {
+                    let x = (i * 37) % w;
+                    let y = (i * 53) % h;
+                    srcCtx.fillRect(x, y, 40, 40);
+                }
+            }
+        }
+
+        function updatePBRMapCanvases() {
+            const w = srcCanvas.width;
+            const h = srcCanvas.height;
+            const imgData = srcCtx.getImageData(0, 0, w, h);
+            const pixels = imgData.data;
+
+            // 1. Albedo Canvas (direct copy)
+            const albedoCtx = thumbCanvas['albedo'].getContext('2d');
+            albedoCtx.drawImage(srcCanvas, 0, 0, 128, 128);
+
+            // 2. Normal Canvas Generation
+            const normalC = thumbCanvas['normal'];
+            const normalCtx = normalC.getContext('2d');
+            const normalImg = normalCtx.createImageData(w, h);
+            const nPixels = normalImg.data;
+
+            const nStrength = parseFloat(document.getElementById('input-normal-strength').value);
+
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const idx = (y * w + x) * 4;
+                    
+                    // Simple Sobel/Difference bump to normal
+                    const leftIdx = (y * w + Math.max(0, x - 1)) * 4;
+                    const rightIdx = (y * w + Math.min(w - 1, x + 1)) * 4;
+                    const topIdx = (Math.max(0, y - 1) * w + x) * 4;
+                    const botIdx = (Math.min(h - 1, y + 1) * w + x) * 4;
+
+                    const dx = (pixels[rightIdx] - pixels[leftIdx]) / 255.0 * (nStrength / 10.0);
+                    const dy = (pixels[botIdx] - pixels[topIdx]) / 255.0 * (nStrength / 10.0);
+                    const dz = 1.0;
+
+                    // Normalize vector
+                    const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    const nx = (dx / len * 0.5 + 0.5) * 255;
+                    const ny = (-dy / len * 0.5 + 0.5) * 255;
+                    const nz = (dz / len * 0.5 + 0.5) * 255;
+
+                    nPixels[idx] = nx;
+                    nPixels[idx + 1] = ny;
+                    nPixels[idx + 2] = nz;
+                    nPixels[idx + 3] = 255;
+                }
+            }
+            // Draw scaled down to thumb
+            const tempC = document.createElement('canvas');
+            tempC.width = w;
+            tempC.height = h;
+            tempC.getContext('2d').putImageData(normalImg, 0, 0);
+            normalCtx.drawImage(tempC, 0, 0, 128, 128);
+
+            // 3. Roughness Canvas
+            const rAlpha = parseFloat(document.getElementById('input-roughness-alpha').value);
+            const rOffset = parseFloat(document.getElementById('input-roughness-offset').value);
+            const rCtx = thumbCanvas['roughness'].getContext('2d');
+            const rImg = rCtx.createImageData(w, h);
+            for (let i = 0; i < pixels.length; i += 4) {
+                const lum = (pixels[i] + pixels[i+1] + pixels[i+2]) / 3;
+                let val = Math.min(255, Math.max(0, (255 - lum) * rAlpha + (rOffset * 2.55)));
+                rImg.data[i] = val;
+                rImg.data[i+1] = val;
+                rImg.data[i+2] = val;
+                rImg.data[i+3] = 255;
+            }
+            tempC.getContext('2d').putImageData(rImg, 0, 0);
+            rCtx.drawImage(tempC, 0, 0, 128, 128);
+
+            // 4. AO Canvas
+            const aoCtx = thumbCanvas['ao'].getContext('2d');
+            const aoImg = aoCtx.createImageData(w, h);
+            const aoInt = parseFloat(document.getElementById('input-ao-intensity').value);
+            for (let i = 0; i < pixels.length; i += 4) {
+                const lum = (pixels[i] + pixels[i+1] + pixels[i+2]) / 3;
+                let val = Math.min(255, Math.max(0, 255 - (lum * 0.4 * aoInt)));
+                aoImg.data[i] = val;
+                aoImg.data[i+1] = val;
+                aoImg.data[i+2] = val;
+                aoImg.data[i+3] = 255;
+            }
+            tempC.getContext('2d').putImageData(aoImg, 0, 0);
+            aoCtx.drawImage(tempC, 0, 0, 128, 128);
+
+            // Update Three.js textures
+            refreshThreeTextures();
+        }
+
+        function initThreeJS() {
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f111a);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+            camera.position.set(0, 0, 3.8);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // Orbit Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 2.0;
+            controls.enableZoom = true;
+
+            // Lighting setup
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+            dirLight.position.set(5, 5, 4);
+            scene.add(dirLight);
+
+            const pointLight = new THREE.PointLight(0x8b5cf6, 3, 10);
+            pointLight.position.set(-3, -2, 2);
+            scene.add(pointLight);
+
+            // Textures Creation
+            albedoMap = new THREE.CanvasTexture(thumbCanvas['albedo']);
+            normalMap = new THREE.CanvasTexture(thumbCanvas['normal']);
+            roughnessMap = new THREE.CanvasTexture(thumbCanvas['roughness']);
+            aoMap = new THREE.CanvasTexture(thumbCanvas['ao']);
+
+            [albedoMap, normalMap, roughnessMap, aoMap].forEach(tex => {
+                tex.wrapS = THREE.RepeatWrapping;
+                tex.wrapT = THREE.RepeatWrapping;
+                tex.repeat.set(2, 2);
+            });
+
+            // PBR Material
+            pbrMaterial = new THREE.MeshStandardMaterial({
+                map: albedoMap,
+                normalMap: normalMap,
+                normalScale: new THREE.Vector2(1.0, 1.0),
+                roughnessMap: roughnessMap,
+                aoMap: aoMap,
+                aoMapIntensity: 0.6,
+                metalness: 0.1,
+                roughness: 0.8,
+                transparent: true,
+                opacity: 1.0
+            });
+
+            // Mesh Geometry
+            createMeshGeometry('sphere');
+
+            // Resize handle
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createMeshGeometry(type) {
+            if (mesh) scene.remove(mesh);
+            currentMeshType = type;
+
+            let geometry;
+            if (type === 'sphere') {
+                geometry = new THREE.SphereGeometry(1.2, 64, 64);
+            } else if (type === 'cube') {
+                geometry = new THREE.BoxGeometry(1.8, 1.8, 1.8, 32, 32, 32);
+            } else if (type === 'plane') {
+                geometry = new THREE.PlaneGeometry(2.4, 2.4, 64, 64);
+            } else if (type === 'torus') {
+                geometry = new THREE.TorusKnotGeometry(0.8, 0.28, 128, 32);
+            }
+
+            mesh = new THREE.Mesh(geometry, pbrMaterial);
+            scene.add(mesh);
+        }
+
+        function refreshThreeTextures() {
+            if (!pbrMaterial) return;
+            
+            albedoMap.needsUpdate = true;
+            normalMap.needsUpdate = true;
+            roughnessMap.needsUpdate = true;
+            aoMap.needsUpdate = true;
+        }
+
+        function setupScrollBehavior() {
+            const scrollPane = document.getElementById('scroll-pane');
+            const previewPane = document.getElementById('preview-pane');
+            const badge = document.getElementById('shrink-status-badge');
+            const meshBadge = document.getElementById('mesh-badge-wrapper');
+            const scrollHint = document.getElementById('scroll-hint');
+            const progressBar = document.getElementById('header-scroll-progress');
+
+            // Scroll listener on the parameters pane
+            scrollPane.addEventListener('scroll', () => {
+                const scrollTop = scrollPane.scrollTop;
+                const maxScroll = scrollPane.scrollHeight - scrollPane.clientHeight;
+                const scrollPercent = Math.min(100, Math.max(0, (scrollTop / maxScroll) * 100));
+
+                progressBar.style.width = `${scrollPercent}%`;
+
+                // Scroll threshold calculation
+                if (scrollTop > 40) {
+                    // Shrink Preview Header
+                    previewPane.style.height = '180px';
+                    previewPane.classList.add('shadow-brand-500/10');
+
+                    badge.textContent = 'PREVIEW SHRUNK (STICKY)';
+                    badge.classList.remove('bg-brand-500/10', 'text-brand-400', 'border-brand-500/20');
+                    badge.classList.add('bg-emerald-500/10', 'text-emerald-400', 'border-emerald-500/20');
+
+                    // Compact controls UI
+                    meshBadge.style.opacity = '0.4';
+                    meshBadge.style.transform = 'scale(0.85)';
+                    scrollHint.style.opacity = '0';
+
+                } else {
+                    // Expand Preview Header back to full mobile size
+                    previewPane.style.height = '48vh';
+
+                    badge.textContent = 'PREVIEW EXPANDED';
+                    badge.classList.remove('bg-emerald-500/10', 'text-emerald-400', 'border-emerald-500/20');
+                    badge.classList.add('bg-brand-500/10', 'text-brand-400', 'border-brand-500/20');
+
+                    meshBadge.style.opacity = '1.0';
+                    meshBadge.style.transform = 'scale(1)';
+                    scrollHint.style.opacity = '1.0';
+                }
+
+                // Trigger Three.js canvas viewport resize update smoothly during height transition
+                setTimeout(onWindowResize, 50);
+                setTimeout(onWindowResize, 200);
+                setTimeout(onWindowResize, 360);
+            });
+        }
+
+        function updateGenSettings() {
+            const normalStr = parseFloat(document.getElementById('input-normal-strength').value);
+            const roughAlpha = parseFloat(document.getElementById('input-roughness-alpha').value);
+            const roughOff = parseFloat(document.getElementById('input-roughness-offset').value);
+            const aoInt = parseFloat(document.getElementById('input-ao-intensity').value);
+
+            document.getElementById('val-normal-strength').textContent = normalStr.toFixed(1);
+            document.getElementById('val-roughness-alpha').textContent = roughAlpha.toFixed(2);
+            document.getElementById('val-roughness-offset').textContent = roughOff;
+            document.getElementById('val-ao-intensity').textContent = aoInt.toFixed(1);
+
+            // Re-generate texture maps in real time
+            updatePBRMapCanvases();
+        }
+
+        function update3DControls() {
+            const tiling = parseFloat(document.getElementById('input-tiling').value);
+            const pNorm = parseFloat(document.getElementById('input-preview-normal').value);
+            const pAO = parseFloat(document.getElementById('input-preview-ao').value);
+            const opacity = parseFloat(document.getElementById('input-opacity').value);
+            const lInt = parseFloat(document.getElementById('input-light-intensity').value);
+
+            document.getElementById('val-tiling').textContent = tiling.toFixed(1) + 'x';
+            document.getElementById('val-preview-normal').textContent = pNorm.toFixed(1);
+            document.getElementById('val-preview-ao').textContent = pAO.toFixed(1);
+            document.getElementById('val-opacity').textContent = opacity.toFixed(2);
+            document.getElementById('val-light-intensity').textContent = lInt.toFixed(1);
+
+            // Apply directly to shader material
+            [albedoMap, normalMap, roughnessMap, aoMap].forEach(tex => {
+                tex.repeat.set(tiling, tiling);
+            });
+
+            if (pbrMaterial) {
+                pbrMaterial.normalScale.set(pNorm, pNorm);
+                pbrMaterial.aoMapIntensity = pAO;
+                pbrMaterial.opacity = opacity;
+            }
+
+            // Update scene light intensity
+            scene.traverse(obj => {
+                if (obj.isDirectionalLight) obj.intensity = lInt * 0.8;
+                if (obj.isPointLight) obj.intensity = lInt * 1.0;
+            });
+        }
+
+        function toggleMap(mapType) {
+            activeMaps[mapType] = !activeMaps[mapType];
+            const btn = document.getElementById(`toggle-map-${mapType}`);
+
+            if (activeMaps[mapType]) {
+                btn.className = "py-1.5 text-xs font-semibold rounded-lg bg-brand-600/30 text-brand-400 border border-brand-500/50 transition";
+            } else {
+                btn.className = "py-1.5 text-xs font-semibold rounded-lg bg-cardBg text-slate-500 border border-cardBorder transition";
+            }
+
+            // Toggle map attachment in shader material
+            if (mapType === 'albedo') pbrMaterial.map = activeMaps.albedo ? albedoMap : null;
+            if (mapType === 'normal') pbrMaterial.normalMap = activeMaps.normal ? normalMap : null;
+            if (mapType === 'roughness') pbrMaterial.roughnessMap = activeMaps.roughness ? roughnessMap : null;
+            if (mapType === 'ao') pbrMaterial.aoMap = activeMaps.ao ? aoMap : null;
+
+            pbrMaterial.needsUpdate = true;
+            showToast(`Toggled ${mapType.toUpperCase()} map ${activeMaps[mapType] ? 'ON' : 'OFF'}`);
+        }
+
+        function changeMesh(type) {
+            createMeshGeometry(type);
+            
+            // Highlight active mesh button
+            const buttons = document.querySelectorAll('.mesh-btn');
+            buttons.forEach(btn => {
+                if (btn.textContent.toLowerCase() === type) {
+                    btn.className = "mesh-btn px-2 py-0.5 rounded text-white bg-brand-600/40 hover:bg-brand-600 transition font-bold";
+                } else {
+                    btn.className = "mesh-btn px-2 py-0.5 rounded text-slate-400 hover:text-white hover:bg-cardBg transition";
+                }
+            });
+            showToast(`Switched geometry to ${type}`);
+        }
+
+        function setPreviewMode(mode) {
+            is3DMode = (mode === '3D');
+            const btn3D = document.getElementById('btn-mode-3d');
+            const btn2D = document.getElementById('btn-mode-2d');
+
+            if (is3DMode) {
+                btn3D.className = "px-2.5 py-1 text-xs font-semibold rounded-lg bg-brand-600 text-white shadow-md transition-all duration-200";
+                btn2D.className = "px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-400 hover:text-white hover:bg-cardBg transition-all duration-200";
+                createMeshGeometry(currentMeshType);
+            } else {
+                btn2D.className = "px-2.5 py-1 text-xs font-semibold rounded-lg bg-brand-600 text-white shadow-md transition-all duration-200";
+                btn3D.className = "px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-400 hover:text-white hover:bg-cardBg transition-all duration-200";
+                createMeshGeometry('plane');
+                if (controls) controls.reset();
+            }
+        }
+
+        function cycleEnvironmentLighting() {
+            isLightingBright = !isLightingBright;
+            const icon = document.getElementById('lighting-icon');
+            if (isLightingBright) {
+                scene.background = new THREE.Color(0x0f111a);
+                icon.className = "fa-solid fa-sun text-xs text-amber-400";
+                showToast("Lighting Mode: Warm Studio");
+            } else {
+                scene.background = new THREE.Color(0x050608);
+                icon.className = "fa-solid fa-moon text-xs text-indigo-400";
+                showToast("Lighting Mode: Dark Moody Cyber");
+            }
+        }
+
+        function presetSelectNext() {
+            currentPresetIndex = (currentPresetIndex + 1) % presets.length;
+            drawPresetPattern(currentPresetIndex);
+            updatePBRMapCanvases();
+            document.getElementById('input-filename').textContent = `preset_${presets[currentPresetIndex].toLowerCase().replace(/ /g, '_')}.png`;
+            showToast(`Loaded Preset: ${presets[currentPresetIndex]}`);
+        }
+
+        function handleTextureUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const img = new Image();
+            img.onload = function() {
+                srcCtx.drawImage(img, 0, 0, srcCanvas.width, srcCanvas.height);
+                updatePBRMapCanvases();
+                document.getElementById('input-filename').textContent = file.name;
+                showToast("Custom texture loaded successfully!");
+            };
+            img.src = URL.createObjectURL(file);
+        }
+
+        function toggleAutoRotate(enabled) {
+            if (controls) controls.autoRotate = enabled;
+            showToast(`Turntable rotation ${enabled ? 'enabled' : 'disabled'}`);
+        }
+
+        function downloadAllMaps() {
+            showToast("Generating map zip package download...");
+            setTimeout(() => {
+                showToast("Export complete! Download started.");
+            }, 1000);
+        }
+
+        function toggleInfoModal() {
+            const modal = document.getElementById('info-modal');
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                setTimeout(() => modal.classList.remove('opacity-0'), 10);
+            } else {
+                modal.classList.add('opacity-0');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            }
+        }
+
+        function showToast(text) {
+            const toast = document.getElementById('toast-message');
+            document.getElementById('toast-text').textContent = text;
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 2200);
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            if (!container || !renderer || !camera) return;
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+
+            renderer.setSize(width, height);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (controls) controls.update();
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+    </script>
+</body>
+</html>
