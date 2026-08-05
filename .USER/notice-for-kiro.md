@@ -1,0 +1,2 @@
+IMPORTANT:
+This folder contains archived chats exported from the workflow, kiro should not stricktly crontinue any UNLESS the user mention any of them. otherwise they are old and stored for reference by the user ONLY UNLESS FURTHER NOTICE.

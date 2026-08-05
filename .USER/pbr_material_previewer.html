@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100 dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D PBR Material Previewer & Zip Inspector</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- JSZip for Zip extraction -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- UTIF.js for TIFF image decoding in browser -->
+    <script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        /* Custom scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(51, 65, 85, 0.8);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(71, 85, 105, 1);
+        }
+        
+        /* Canvas smooth rendering */
+        canvas {
+            outline: none;
+            touch-action: none;
+        }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        
+        .glass-card {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-btn.active {
+            border-bottom-color: #3b82f6;
+            color: #60a5fa;
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        /* Pulse animation for drop zone */
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(59, 130, 246, 0.4); }
+            50% { border-color: rgba(59, 130, 246, 0.9); }
+        }
+        .drag-active {
+            animation: pulse-border 1.5s infinite;
+            background: rgba(59, 130, 246, 0.15) !important;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col font-sans overflow-hidden select-none antialiased bg-slate-950">
+    
+    <!-- Top Navigation Header -->
+    <header class="h-14 bg-slate-900/90 border-b border-slate-800 px-4 flex items-center justify-between shrink-0 z-20">
+        <div class="flex items-center space-x-3">
+            <div class="p-2 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30">
+                <i data-lucide="box" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="text-sm font-bold tracking-wide text-white flex items-center gap-2">
+                    PBR Material Previewer 
+                    <span class="text-[10px] px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/30 font-medium">Auto-ZIP Engine</span>
+                </h1>
+                <p class="text-xs text-slate-400">Drag & drop PBR zip bundles, auto-map channels & render high-fidelity 3D shaders</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+            <!-- Sample Loader Button -->
+            <button id="btn-load-sample" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
+                Load Sample Material
+            </button>
+
+            <!-- Reset Camera -->
+            <button id="btn-reset-cam" title="Reset View" class="p-2 text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-lg border border-slate-700 transition">
+                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+            </button>
+
+            <!-- Snapshot / Render Screenshot -->
+            <button id="btn-screenshot" title="Take High-Res Screenshot" class="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition shadow-lg shadow-blue-600/20 flex items-center gap-1.5">
+                <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+                Capture Render
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <div class="flex-1 flex overflow-hidden relative">
+        
+        <!-- Left Sidebar: Controls & Inspector -->
+        <aside id="left-sidebar" class="w-96 bg-slate-900/95 border-r border-slate-800/80 flex flex-col z-10 transition-all duration-300">
+            
+            <!-- Sidebar Navigation Tabs -->
+            <div class="flex border-b border-slate-800 text-xs font-medium bg-slate-950/50">
+                <button class="tab-btn active flex-1 py-3 text-center text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5 border-b-2 border-transparent" data-tab="tab-zip">
+                    <i data-lucide="archive" class="w-4 h-4"></i> ZIP & Maps
+                </button>
+                <button class="tab-btn flex-1 py-3 text-center text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5 border-b-2 border-transparent" data-tab="tab-pbr">
+                    <i data-lucide="sliders" class="w-4 h-4"></i> Shader Adjust
+                </button>
+                <button class="tab-btn flex-1 py-3 text-center text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5 border-b-2 border-transparent" data-tab="tab-env">
+                    <i data-lucide="sun" class="w-4 h-4"></i> Studio & Lighting
+                </button>
+            </div>
+
+            <!-- Scrollable Tab Contents -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-5 text-xs">
+                
+                <div id="tab-zip" class="tab-content space-y-4">
+                    
+                    <!-- File Dropzone -->
+                    <div id="dropzone" class="border-2 border-dashed border-slate-700 hover:border-blue-500 rounded-xl p-5 text-center bg-slate-800/30 transition-all cursor-pointer relative group">
+                        <input type="file" id="file-input" class="hidden" accept=".zip,.png,.jpg,.jpeg,.webp,.tiff,.tif" multiple>
+                        <div class="w-12 h-12 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center mx-auto mb-3 border border-blue-500/20 group-hover:scale-110 transition-transform">
+                            <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+                        </div>
+                        <p class="font-semibold text-slate-200 mb-1">Upload PBR ZIP or Images</p>
+                        <p class="text-[11px] text-slate-400 leading-relaxed mb-2">
+                            Drop your material <span class="text-blue-400 font-mono font-semibold">.zip</span> archive containing COL, NRM, DISP, ROUGH, GLOSS, REFL, AO or ALPHA maps.
+                        </p>
+                        <span class="inline-block px-2.5 py-1 bg-slate-800 text-slate-300 rounded text-[10px] border border-slate-700">Supports TIFF, PNG, JPG, WEBP</span>
+                    </div>
+
+                    <!-- Zip Archive Details Card -->
+                    <div id="zip-summary" class="hidden glass-card rounded-xl p-3 space-y-2 border border-blue-500/20 bg-blue-950/10">
+                        <div class="flex items-center justify-between">
+                            <span class="font-semibold text-blue-400 flex items-center gap-1.5 text-xs">
+                                <i data-lucide="file-archive" class="w-4 h-4"></i> Loaded Archive:
+                            </span>
+                            <span id="zip-file-count" class="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full">0 files</span>
+                        </div>
+                        <p id="zip-name" class="font-mono text-slate-300 truncate font-medium text-[11px]"></p>
+                        <div id="preview-thumb-container" class="hidden mt-2 pt-2 border-t border-slate-800 flex items-center gap-3">
+                            <img id="preview-thumb-img" class="w-12 h-12 rounded border border-slate-700 object-cover bg-slate-900">
+                            <div>
+                                <p class="text-[10px] font-semibold text-slate-400">Included Material Preview</p>
+                                <p class="text-[10px] text-slate-500">Auto-detected sample render thumbnail</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Texture Map Auto-Assignments Matrix -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-bold text-slate-300 tracking-wide uppercase text-[10px] flex items-center gap-1">
+                                <i data-lucide="layers" class="w-3.5 h-3.5 text-blue-400"></i> Auto-Detected Maps Matrix
+                            </h3>
+                            <button id="btn-auto-remap" class="text-[10px] text-blue-400 hover:text-blue-300 underline">Re-detect</button>
+                        </div>
+
+                        <!-- Channel Slots Container -->
+                        <div id="channel-slots" class="space-y-2">
+                            <!-- Populated dynamically via JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-pbr" class="tab-content space-y-4 hidden">
+                    
+                    <!-- Color & Base Properties -->
+                    <div class="glass-card rounded-xl p-3.5 space-y-3">
+                        <h4 class="font-semibold text-slate-200 border-b border-slate-800 pb-2 flex items-center justify-between">
+                            <span>Base Surface Color</span>
+                            <input type="color" id="param-basecolor" value="#ffffff" class="w-6 h-6 rounded border-0 bg-transparent cursor-pointer">
+                        </h4>
+                        
+                        <!-- UV Tiling -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-slate-400">
+                                <span>UV Tiling (U & V)</span>
+                                <span id="val-tiling" class="text-blue-400 font-mono">1.0</span>
+                            </div>
+                            <input type="range" id="param-tiling" min="0.1" max="10" step="0.1" value="1" class="w-full accent-blue-500">
+                        </div>
+
+                        <!-- UV Rotation -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-slate-400">
+                                <span>UV Rotation</span>
+                                <span id="val-uvrot" class="text-blue-400 font-mono">0°</span>
+                            </div>
+                            <input type="range" id="param-uvrot" min="0" max="360" step="1" value="0" class="w-full accent-blue-500">
+                        </div>
+                    </div>
+
+                    <!-- Roughness & Metalness Controls -->
+                    <div class="glass-card rounded-xl p-3.5 space-y-3">
+                        <h4 class="font-semibold text-slate-200 border-b border-slate-800 pb-2">Roughness & Metallic</h4>
+                        
+                        <!-- Roughness -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Roughness Factor</span>
+                                <span id="val-roughness" class="text-blue-400 font-mono">1.0</span>
+                            </div>
+                            <input type="range" id="param-roughness" min="0" max="1" step="0.01" value="1" class="w-full accent-blue-500">
+                        </div>
+
+                        <!-- Invert Roughness Toggle (For Glossiness maps) -->
+                        <div class="flex items-center justify-between pt-1">
+                            <span class="text-slate-400">Invert Roughness (Glossiness)</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="param-invert-rough" class="sr-only peer">
+                                <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+
+                        <!-- Metalness -->
+                        <div class="space-y-2 pt-2">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Metalness Factor</span>
+                                <span id="val-metalness" class="text-blue-400 font-mono">0.0</span>
+                            </div>
+                            <input type="range" id="param-metalness" min="0" max="1" step="0.01" value="0" class="w-full accent-blue-500">
+                        </div>
+                    </div>
+
+                    <!-- Normal Map & Displacement -->
+                    <div class="glass-card rounded-xl p-3.5 space-y-3">
+                        <h4 class="font-semibold text-slate-200 border-b border-slate-800 pb-2">Normal & Height Displacement</h4>
+                        
+                        <!-- Normal Intensity -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Normal Map Scale</span>
+                                <span id="val-normalscale" class="text-blue-400 font-mono">1.0</span>
+                            </div>
+                            <input type="range" id="param-normalscale" min="0" max="3" step="0.05" value="1" class="w-full accent-blue-500">
+                        </div>
+
+                        <!-- Flip Y Normal (DirectX vs OpenGL) -->
+                        <div class="flex items-center justify-between pt-1">
+                            <span class="text-slate-400">Flip Normal Green Channel (DirectX)</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="param-normal-flipy" class="sr-only peer">
+                                <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+
+                        <!-- Displacement Height -->
+                        <div class="space-y-2 pt-2">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Displacement Height</span>
+                                <span id="val-dispscale" class="text-blue-400 font-mono">0.10</span>
+                            </div>
+                            <input type="range" id="param-dispscale" min="0" max="0.5" step="0.01" value="0.1" class="w-full accent-blue-500">
+                        </div>
+                        
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Displacement Bias</span>
+                                <span id="val-dispbias" class="text-blue-400 font-mono">0.00</span>
+                            </div>
+                            <input type="range" id="param-dispbias" min="-0.2" max="0.2" step="0.01" value="0" class="w-full accent-blue-500">
+                        </div>
+                    </div>
+
+                    <!-- Advanced Shading (Clearcoat, Glass Transmission, Alpha) -->
+                    <div class="glass-card rounded-xl p-3.5 space-y-3">
+                        <h4 class="font-semibold text-slate-200 border-b border-slate-800 pb-2">Clearcoat & Glass Transmission</h4>
+                        
+                        <!-- Clearcoat -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Clearcoat Layer</span>
+                                <span id="val-clearcoat" class="text-blue-400 font-mono">0.0</span>
+                            </div>
+                            <input type="range" id="param-clearcoat" min="0" max="1" step="0.05" value="0" class="w-full accent-blue-500">
+                        </div>
+
+                        <!-- Transmission (Glass/Water droplets) -->
+                        <div class="space-y-2 pt-2">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Transmission (Glass/Water)</span>
+                                <span id="val-transmission" class="text-blue-400 font-mono">0.0</span>
+                            </div>
+                            <input type="range" id="param-transmission" min="0" max="1" step="0.05" value="0" class="w-full accent-blue-500">
+                        </div>
+
+                        <!-- Index of Refraction (IOR) -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Index of Refraction (IOR)</span>
+                                <span id="val-ior" class="text-blue-400 font-mono">1.50</span>
+                            </div>
+                            <input type="range" id="param-ior" min="1.0" max="2.3" step="0.01" value="1.50" class="w-full accent-blue-500">
+                        </div>
+
+                        <!-- Alpha Test / Opacity -->
+                        <div class="space-y-2 pt-2">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Alpha Mask Cutoff</span>
+                                <span id="val-alphatest" class="text-blue-400 font-mono">0.10</span>
+                            </div>
+                            <input type="range" id="param-alphatest" min="0" max="0.9" step="0.05" value="0.10" class="w-full accent-blue-500">
+                        </div>
+                    </div>
+
+                </div>
+
+                <div id="tab-env" class="tab-content space-y-4 hidden">
+                    
+                    <!-- Lighting Presets -->
+                    <div class="glass-card rounded-xl p-3.5 space-y-3">
+                        <h4 class="font-semibold text-slate-200 border-b border-slate-800 pb-2">Environment HDRI Preset</h4>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button class="env-preset-btn active bg-blue-600/20 text-blue-300 border border-blue-500/40 p-2 rounded-lg text-left transition hover:bg-slate-700" data-env="studio">
+                                <div class="font-medium text-xs">Studio Clean</div>
+                                <div class="text-[10px] text-slate-400">Neutral soft lighting</div>
+                            </button>
+                            <button class="env-preset-btn bg-slate-800 text-slate-300 border border-slate-700 p-2 rounded-lg text-left transition hover:bg-slate-700" data-env="sunset">
+                                <div class="font-medium text-xs">Warm Sunset</div>
+                                <div class="text-[10px] text-slate-400">Golden hour directional</div>
+                            </button>
+                            <button class="env-preset-btn bg-slate-800 text-slate-300 border border-slate-700 p-2 rounded-lg text-left transition hover:bg-slate-700" data-env="industrial">
+                                <div class="font-medium text-xs">Cool Industrial</div>
+                                <div class="text-[10px] text-slate-400">High contrast metallic</div>
+                            </button>
+                            <button class="env-preset-btn bg-slate-800 text-slate-300 border border-slate-700 p-2 rounded-lg text-left transition hover:bg-slate-700" data-env="dark">
+                                <div class="font-medium text-xs">Dramatic Dark</div>
+                                <div class="text-[10px] text-slate-400">Moody rim light</div>
+                            </button>
+                        </div>
+
+                        <!-- Environment Rotation & Exposure -->
+                        <div class="space-y-2 pt-2">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Environment Rotation</span>
+                                <span id="val-envrot" class="text-blue-400 font-mono">0°</span>
+                            </div>
+                            <input type="range" id="param-envrot" min="0" max="360" step="1" value="0" class="w-full accent-blue-500">
+                        </div>
+
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Exposure / Light Intensity</span>
+                                <span id="val-exposure" class="text-blue-400 font-mono">1.2</span>
+                            </div>
+                            <input type="range" id="param-exposure" min="0.2" max="3.0" step="0.1" value="1.2" class="w-full accent-blue-500">
+                        </div>
+                    </div>
+
+                    <!-- Viewport Background Settings -->
+                    <div class="glass-card rounded-xl p-3.5 space-y-3">
+                        <h4 class="font-semibold text-slate-200 border-b border-slate-800 pb-2">Viewport Background</h4>
+                        
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">Show Ground Grid</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="param-show-grid" checked class="sr-only peer">
+                                <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">Auto Rotate Mesh</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="param-autorotate" class="sr-only peer">
+                                <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </aside>
+
+        <!-- Center Viewport Render Canvas Area -->
+        <main class="flex-1 relative bg-slate-950 flex flex-col overflow-hidden">
+            
+            <!-- Floating Top Viewport Toolbar -->
+            <div class="absolute top-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none">
+                
+                <!-- Geometry Switcher Buttons -->
+                <div class="glass-panel p-1 rounded-xl flex items-center space-x-1 pointer-events-auto shadow-2xl">
+                    <button class="mesh-btn active px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white transition flex items-center gap-1.5" data-mesh="sphere">
+                        <i data-lucide="circle" class="w-3.5 h-3.5"></i> Sphere
+                    </button>
+                    <button class="mesh-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition flex items-center gap-1.5" data-mesh="cube">
+                        <i data-lucide="box" class="w-3.5 h-3.5"></i> Cube
+                    </button>
+                    <button class="mesh-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition flex items-center gap-1.5" data-mesh="plane">
+                        <i data-lucide="square" class="w-3.5 h-3.5"></i> Plane
+                    </button>
+                    <button class="mesh-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition flex items-center gap-1.5" data-mesh="cylinder">
+                        <i data-lucide="cylinder" class="w-3.5 h-3.5"></i> Cylinder
+                    </button>
+                </div>
+
+                <!-- Channel Solo Inspect Mode -->
+                <div class="glass-panel p-1.5 rounded-xl flex items-center space-x-2 pointer-events-auto shadow-2xl text-xs">
+                    <span class="text-slate-400 px-2 font-medium">Channel View:</span>
+                    <select id="inspect-mode" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-blue-500">
+                        <option value="full">Full PBR Render</option>
+                        <option value="map">Albedo / Base Color</option>
+                        <option value="normalMap">Normal Map Only</option>
+                        <option value="roughnessMap">Roughness Channel</option>
+                        <option value="metalnessMap">Metalness Channel</option>
+                        <option value="displacementMap">Height / Displacement</option>
+                        <option value="aoMap">Ambient Occlusion</option>
+                        <option value="wireframe">Wireframe Mesh</option>
+                    </select>
+                </div>
+
+            </div>
+
+            <!-- Viewport Canvas Container -->
+            <div id="canvas-container" class="w-full h-full relative cursor-grab active:cursor-grabbing">
+                <!-- Three.js renders inside here -->
+            </div>
+
+            <!-- Bottom Viewport Information Bar -->
+            <div class="absolute bottom-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none text-[11px] text-slate-400">
+                <div class="glass-panel px-3 py-1.5 rounded-lg flex items-center space-x-3 pointer-events-auto">
+                    <span class="flex items-center gap-1"><i data-lucide="activity" class="w-3.5 h-3.5 text-blue-400"></i> FPS: <span id="val-fps" class="text-white font-mono font-bold">60</span></span>
+                    <span class="text-slate-600">|</span>
+                    <span id="geometry-polycount" class="font-mono">Polys: 65,536</span>
+                </div>
+                
+                <div class="glass-panel px-3 py-1.5 rounded-lg pointer-events-auto flex items-center gap-2">
+                    <i data-lucide="mouse-pointer" class="w-3.5 h-3.5 text-slate-400"></i> Left Click: Rotate | Right Click: Pan | Scroll: Zoom
+                </div>
+            </div>
+
+            <!-- Loading Spinner & Toast Overlay -->
+            <div id="loading-overlay" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-md z-30 flex flex-col items-center justify-center space-y-4">
+                <div class="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+                <div class="text-center">
+                    <p id="loading-text" class="text-sm font-semibold text-white">Extracting ZIP Archive...</p>
+                    <p id="loading-subtext" class="text-xs text-slate-400 mt-1">Parsing image maps and initializing PBR textures</p>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        
+        // PBR Channel Configuration & Matchers
+        const MAP_CHANNELS = {
+            map: {
+                id: 'map',
+                name: 'Base Color / Albedo',
+                icon: 'palette',
+                keywords: ['col', 'color', 'albedo', 'diffuse', 'basecolor', 'alphamasked'],
+                found: null,
+                texture: null,
+                enabled: true
+            },
+            normalMap: {
+                id: 'normalMap',
+                name: 'Normal Map',
+                icon: 'compass',
+                keywords: ['nrm', 'norm', 'normal', 'nrm16', 'normal16'],
+                found: null,
+                texture: null,
+                enabled: true
+            },
+            roughnessMap: {
+                id: 'roughnessMap',
+                name: 'Roughness / Gloss',
+                icon: 'sun-dim',
+                keywords: ['rough', 'roughness', 'gloss', 'glossiness', 'refl', 'reflection'],
+                found: null,
+                texture: null,
+                enabled: true,
+                isGloss: false
+            },
+            metalnessMap: {
+                id: 'metalnessMap',
+                name: 'Metalness / Metallic',
+                icon: 'shield',
+                keywords: ['metal', 'metallic', 'metalness'],
+                found: null,
+                texture: null,
+                enabled: true
+            },
+            displacementMap: {
+                id: 'displacementMap',
+                name: 'Displacement / Height',
+                icon: 'mountain',
+                keywords: ['disp', 'displacement', 'disp16', 'height', 'bump'],
+                found: null,
+                texture: null,
+                enabled: true
+            },
+            aoMap: {
+                id: 'aoMap',
+                name: 'Ambient Occlusion',
+                icon: 'moon',
+                keywords: ['ao', 'occlusion', 'ambientocclusion'],
+                found: null,
+                texture: null,
+                enabled: true
+            },
+            alphaMap: {
+                id: 'alphaMap',
+                name: 'Alpha Mask / Opacity',
+                icon: 'eye-off',
+                keywords: ['alpha', 'opacity', 'mask'],
+                found: null,
+                texture: null,
+                enabled: true
+            }
+        };
+
+        // Application State
+        const state = {
+            scene: null,
+            camera: null,
+            renderer: null,
+            controls: null,
+            mesh: null,
+            material: null,
+            environmentMaps: {},
+            currentEnv: 'studio',
+            currentMeshType: 'sphere',
+            zipFiles: {},
+            extractedTextures: {},
+            fpsCounter: 0,
+            lastFpsUpdate: performance.now(),
+            params: {
+                tiling: 1.0,
+                uvRotation: 0,
+                baseColor: '#ffffff',
+                roughness: 1.0,
+                invertRoughness: false,
+                metalness: 0.0,
+                normalScale: 1.0,
+                normalFlipY: false,
+                dispScale: 0.1,
+                dispBias: 0.0,
+                clearcoat: 0.0,
+                transmission: 0.0,
+                ior: 1.5,
+                alphaTest: 0.1,
+                showGrid: true,
+                autoRotate: false,
+                exposure: 1.2,
+                envRotation: 0,
+                inspectMode: 'full'
+            }
+        };
+
+        // Helper: Initialize Lucide Icons safely
+        function initIcons() {
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        }
+
+        function initThreeScene() {
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            // Scene setup
+            state.scene = new THREE.Scene();
+            state.scene.background = new THREE.Color('#090d16');
+
+            // Camera setup
+            state.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+            state.camera.position.set(0, 0, 3.5);
+
+            // WebGL Renderer
+            state.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+            state.renderer.setSize(width, height);
+            state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            state.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            state.renderer.toneMappingExposure = state.params.exposure;
+            state.renderer.shadowMap.enabled = true;
+            state.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            state.renderer.outputEncoding = THREE.sRGBEncoding;
+
+            container.appendChild(state.renderer.domElement);
+
+            // Orbit Controls
+            state.controls = new THREE.OrbitControls(state.camera, state.renderer.domElement);
+            state.controls.enableDamping = true;
+            state.controls.dampingFactor = 0.05;
+            state.controls.minDistance = 1.2;
+            state.controls.maxDistance = 10;
+
+            // Scene Lighting Setup
+            setupLighting();
+
+            // Ground Grid Helper
+            setupGrid();
+
+            // Default Base PBR Material
+            state.material = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff,
+                roughness: state.params.roughness,
+                metalness: state.params.metalness,
+                clearcoat: state.params.clearcoat,
+                transmission: state.params.transmission,
+                ior: state.params.ior,
+                side: THREE.DoubleSide
+            });
+
+            // Initial Mesh Generation
+            createMesh(state.currentMeshType);
+
+            // Generate Procedural Lighting & Environment
+            generateEnvironments();
+
+            // Window Resize Listener
+            window.addEventListener('resize', onWindowResize);
+
+            // Render Animation Loop
+            animate();
+        }
+
+        function setupLighting() {
+            // Main Directional Sun Light
+            state.mainLight = new THREE.DirectionalLight(0xffffff, 2.0);
+            state.mainLight.position.set(4, 5, 4);
+            state.mainLight.castShadow = true;
+            state.mainLight.shadow.mapSize.width = 2048;
+            state.mainLight.shadow.mapSize.height = 2048;
+            state.mainLight.shadow.bias = -0.0001;
+            state.scene.add(state.mainLight);
+
+            // Secondary Soft Rim Light
+            state.rimLight = new THREE.DirectionalLight(0x60a5fa, 0.8);
+            state.rimLight.position.set(-4, -2, -4);
+            state.scene.add(state.rimLight);
+
+            // Soft Ambient Light
+            state.ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            state.scene.add(state.ambientLight);
+        }
+
+        function setupGrid() {
+            state.gridHelper = new THREE.GridHelper(10, 20, 0x3b82f6, 0x1e293b);
+            state.gridHelper.position.y = -1.0;
+            state.scene.add(state.gridHelper);
+        }
+
+        // Procedural Environment Generator (Creates HDRI-like reflections on the fly without huge external assets!)
+        function generateEnvironments() {
+            const pmremGenerator = new THREE.PMREMGenerator(state.renderer);
+            pmremGenerator.compileEquirectangularShader();
+
+            // Helper to build dynamic cubemap canvas
+            function createHDRI(type) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 512;
+                canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+
+                const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                if (type === 'studio') {
+                    grad.addColorStop(0, '#1e293b');
+                    grad.addColorStop(0.5, '#0f172a');
+                    grad.addColorStop(1, '#020617');
+                } else if (type === 'sunset') {
+                    grad.addColorStop(0, '#fdba74');
+                    grad.addColorStop(0.4, '#f97316');
+                    grad.addColorStop(1, '#1e1b4b');
+                } else if (type === 'industrial') {
+                    grad.addColorStop(0, '#94a3b8');
+                    grad.addColorStop(0.5, '#475569');
+                    grad.addColorStop(1, '#0f172a');
+                } else { // dark
+                    grad.addColorStop(0, '#1e1b4b');
+                    grad.addColorStop(0.5, '#090d16');
+                    grad.addColorStop(1, '#000000');
+                }
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Add synthetic soft studio highlights
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.beginPath();
+                ctx.arc(150, 60, 40, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.beginPath();
+                ctx.arc(380, 80, 60, 0, Math.PI * 2);
+                ctx.fill();
+
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.mapping = THREE.EquirectangularReflectionMapping;
+                const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+                texture.dispose();
+                return envMap;
+            }
+
+            state.environmentMaps['studio'] = createHDRI('studio');
+            state.environmentMaps['sunset'] = createHDRI('sunset');
+            state.environmentMaps['industrial'] = createHDRI('industrial');
+            state.environmentMaps['dark'] = createHDRI('dark');
+
+            // Set default studio map
+            setEnvironment('studio');
+        }
+
+        function setEnvironment(envKey) {
+            if (state.environmentMaps[envKey]) {
+                state.currentEnv = envKey;
+                const env = state.environmentMaps[envKey];
+                state.scene.environment = env;
+            }
+        }
+
+        function createMesh(type) {
+            if (state.mesh) {
+                state.scene.remove(state.mesh);
+                state.mesh.geometry.dispose();
+            }
+
+            let geometry;
+            let polycountText = '';
+
+            switch (type) {
+                case 'cube':
+                    geometry = new THREE.BoxGeometry(1.4, 1.4, 1.4, 64, 64, 64);
+                    polycountText = 'Polys: 49,152';
+                    break;
+                case 'plane':
+                    geometry = new THREE.PlaneGeometry(2, 2, 256, 256);
+                    polycountText = 'Polys: 131,072';
+                    break;
+                case 'cylinder':
+                    geometry = new THREE.CylinderGeometry(0.8, 0.8, 1.6, 128, 128);
+                    polycountText = 'Polys: 32,768';
+                    break;
+                case 'sphere':
+                default:
+                    geometry = new THREE.SphereGeometry(1, 128, 128);
+                    polycountText = 'Polys: 32,512';
+                    break;
+            }
+
+            // Ensure UV2 coordinates exist for Ambient Occlusion
+            geometry.attributes.uv2 = geometry.attributes.uv;
+
+            state.mesh = new THREE.Mesh(geometry, state.material);
+            state.mesh.castShadow = true;
+            state.mesh.receiveShadow = true;
+            state.scene.add(state.mesh);
+
+            document.getElementById('geometry-polycount').innerText = polycountText;
+            state.currentMeshType = type;
+        }
+
+        async function handleZipOrFiles(files) {
+            showLoading(true, "Processing files...", "Scanning files for PBR maps");
+
+            try {
+                let fileList = Array.from(files);
+                state.zipFiles = {};
+                let zipName = '';
+
+                // Check if user uploaded a ZIP archive
+                const zipFile = fileList.find(f => f.name.toLowerCase().endsWith('.zip'));
+
+                if (zipFile) {
+                    zipName = zipFile.name;
+                    const zip = new JSZip();
+                    const contents = await zip.loadAsync(zipFile);
+                    
+                    for (const filename of Object.keys(contents.files)) {
+                        const entry = contents.files[filename];
+                        if (!entry.dir) {
+                            const blob = await entry.async('blob');
+                            state.zipFiles[filename] = new File([blob], filename);
+                        }
+                    }
+                } else {
+                    // Direct images dropped/selected
+                    zipName = `${fileList.length} Individual Texture Maps`;
+                    fileList.forEach(file => {
+                        state.zipFiles[file.name] = file;
+                    });
+                }
+
+                // Update ZIP info UI
+                const zipSummary = document.getElementById('zip-summary');
+                const zipNameEl = document.getElementById('zip-name');
+                const zipCountEl = document.getElementById('zip-file-count');
+                
+                zipSummary.classList.remove('hidden');
+                zipNameEl.innerText = zipName;
+                zipCountEl.innerText = `${Object.keys(state.zipFiles).length} files`;
+
+                // Run Intelligent Auto-Mapper algorithm
+                await autoMapChannels();
+
+            } catch (err) {
+                console.error("ZIP Processing Error:", err);
+                alert("Failed to extract ZIP or process texture files: " + err.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Intelligent Keyword-Based Texture Channel Detection
+        async function autoMapChannels() {
+            // Reset mappings
+            Object.keys(MAP_CHANNELS).forEach(k => {
+                MAP_CHANNELS[k].found = null;
+                MAP_CHANNELS[k].texture = null;
+                MAP_CHANNELS[k].isGloss = false;
+            });
+
+            const filenames = Object.keys(state.zipFiles);
+            let previewImageFile = null;
+
+            // First pass: look for a render preview thumbnail image inside the zip
+            filenames.forEach(fn => {
+                const lower = fn.toLowerCase();
+                if (lower.includes('preview') || lower.includes('thumb') || lower.includes('sample')) {
+                    previewImageFile = state.zipFiles[fn];
+                }
+            });
+
+            if (previewImageFile) {
+                const url = URL.createObjectURL(previewImageFile);
+                const thumbContainer = document.getElementById('preview-thumb-container');
+                const thumbImg = document.getElementById('preview-thumb-img');
+                thumbImg.src = url;
+                thumbContainer.classList.remove('hidden');
+            }
+
+            // Second pass: match PBR channels
+            for (const channelKey of Object.keys(MAP_CHANNELS)) {
+                const channel = MAP_CHANNELS[channelKey];
+                
+                // Find best matching filename
+                let bestMatch = null;
+                let bestScore = -1;
+
+                for (const filename of filenames) {
+                    const lower = filename.toLowerCase();
+
+                    // Skip preview images for actual material slots
+                    if (lower.includes('preview') || lower.includes('thumb')) continue;
+
+                    // Match keywords
+                    for (const keyword of channel.keywords) {
+                        const regex = new RegExp(`[._\\-\\s]${keyword}([._\\-\\s]|\\d|$)`, 'i');
+                        if (regex.test(lower) || lower.includes(`_${keyword}_`) || lower.endsWith(`_${keyword}.jpg`) || lower.endsWith(`_${keyword}.png`)) {
+                            
+                            let score = keyword.length;
+
+                            // Format priority preference: prefer PNG/JPG over TIFF if available for three.js native web performance
+                            if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg')) score += 5;
+                            // Prefer non-16bit for standard albedo if present
+                            if (!lower.includes('16')) score += 2;
+
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestMatch = filename;
+                            }
+                        }
+                    }
+                }
+
+                if (bestMatch) {
+                    channel.found = bestMatch;
+                    if (channelKey === 'roughnessMap' && (bestMatch.toLowerCase().includes('gloss') || bestMatch.toLowerCase().includes('refl'))) {
+                        channel.isGloss = true;
+                    }
+                }
+            }
+
+            // Load detected textures into Three.js material
+            await applyTexturesToMaterial();
+            renderChannelUI();
+        }
+
+        async function loadTextureFromFile(file) {
+            const extension = file.name.split('.').pop().toLowerCase();
+
+            // TIFF decoding using UTIF.js
+            if (extension === 'tiff' || extension === 'tif') {
+                const arrayBuffer = await file.arrayBuffer();
+                const ifds = UTIF.decode(arrayBuffer);
+                if (!ifds || ifds.length === 0) throw new Error("Invalid TIFF structure");
+                UTIF.decodeImage(arrayBuffer, ifds[0]);
+                const rgba = UTIF.toRGBA8(ifds[0]);
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = ifds[0].width;
+                canvas.height = ifds[0].height;
+                const ctx = canvas.getContext('2d');
+                const imgData = ctx.createImageData(canvas.width, canvas.height);
+                imgData.data.set(rgba);
+                ctx.putImageData(imgData, 0, 0);
+
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                return texture;
+            } else {
+                // Standard PNG/JPG/WEBP Browser Image Loader
+                const url = URL.createObjectURL(file);
+                return new Promise((resolve, reject) => {
+                    new THREE.TextureLoader().load(url, tex => {
+                        tex.wrapS = THREE.RepeatWrapping;
+                        tex.wrapT = THREE.RepeatWrapping;
+                        resolve(tex);
+                    }, undefined, reject);
+                });
+            }
+        }
+
+        async function applyTexturesToMaterial() {
+            showLoading(true, "Configuring Shaders...", "Creating texture channels & UV mappings");
+
+            // Reset material maps
+            Object.keys(MAP_CHANNELS).forEach(key => {
+                state.material[key] = null;
+            });
+
+            for (const key of Object.keys(MAP_CHANNELS)) {
+                const channel = MAP_CHANNELS[key];
+                if (channel.found && channel.enabled) {
+                    try {
+                        const file = state.zipFiles[channel.found];
+                        const texture = await loadTextureFromFile(file);
+
+                        // Color Space & Encoding Configuration
+                        if (key === 'map') {
+                            texture.encoding = THREE.sRGBEncoding;
+                        } else {
+                            texture.encoding = THREE.LinearEncoding;
+                        }
+
+                        // Apply UV Tiling
+                        texture.repeat.set(state.params.tiling, state.params.tiling);
+
+                        // Assign to material
+                        state.material[key] = texture;
+                        channel.texture = texture;
+
+                        // Glossiness handling: if gloss map was matched, check auto-invert
+                        if (key === 'roughnessMap' && channel.isGloss) {
+                            state.params.invertRoughness = true;
+                            document.getElementById('param-invert-rough').checked = true;
+                        }
+
+                    } catch (err) {
+                        console.warn(`Failed to load texture for ${key}:`, err);
+                    }
+                }
+            }
+
+            // If normal map present, apply normal scale
+            if (state.material.normalMap) {
+                state.material.normalScale.set(state.params.normalScale, state.params.normalScale);
+            }
+
+            // If displacement map present, set scale & bias
+            if (state.material.displacementMap) {
+                state.material.displacementScale = state.params.dispScale;
+                state.material.displacementBias = state.params.dispbias;
+            }
+
+            state.material.needsUpdate = true;
+            showLoading(false);
+        }
+
+        function renderChannelUI() {
+            const container = document.getElementById('channel-slots');
+            container.innerHTML = '';
+
+            const filenames = Object.keys(state.zipFiles);
+
+            Object.keys(MAP_CHANNELS).forEach(key => {
+                const channel = MAP_CHANNELS[key];
+                const isMatched = !!channel.found;
+
+                const card = document.createElement('div');
+                card.className = `p-2.5 rounded-lg border transition ${isMatched ? 'bg-slate-800/60 border-slate-700' : 'bg-slate-900/40 border-slate-800/80'}`;
+                
+                card.innerHTML = `
+                    <div class="flex items-center justify-between mb-1.5">
+                        <div class="flex items-center space-x-2">
+                            <span class="${isMatched ? 'text-blue-400' : 'text-slate-500'}">
+                                <i data-lucide="${channel.icon}" class="w-4 h-4"></i>
+                            </span>
+                            <span class="font-medium text-slate-200 text-xs">${channel.name}</span>
+                        </div>
+                        <div class="flex items-center space-x-1.5">
+                            ${isMatched ? `<span class="text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded font-medium">Auto-Mapped</span>` : `<span class="text-[9px] px-1.5 py-0.5 bg-slate-800 text-slate-500 rounded">Unassigned</span>`}
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <select class="channel-select flex-1 bg-slate-950 border border-slate-700/80 text-slate-300 rounded px-2 py-1 text-[11px] focus:outline-none focus:border-blue-500" data-channel="${key}">
+                            <option value="">-- None / Disabled --</option>
+                            ${filenames.map(fn => `<option value="${fn}" ${channel.found === fn ? 'selected' : ''}>${fn}</option>`).join('')}
+                        </select>
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+
+            // Add Event Listeners for manual override select dropdowns
+            document.querySelectorAll('.channel-select').forEach(select => {
+                select.addEventListener('change', async (e) => {
+                    const chKey = e.target.dataset.channel;
+                    const selectedFile = e.target.value;
+                    MAP_CHANNELS[chKey].found = selectedFile || null;
+                    await applyTexturesToMaterial();
+                    renderChannelUI();
+                });
+            });
+
+            initIcons();
+        }
+
+        function bindUIEvents() {
+            // Tab switching
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+
+                    btn.classList.add('active');
+                    const tabId = btn.dataset.tab;
+                    document.getElementById(tabId).classList.remove('hidden');
+                });
+            });
+
+            // Drag and Drop Zone
+            const dropzone = document.getElementById('dropzone');
+            const fileInput = document.getElementById('file-input');
+
+            dropzone.addEventListener('click', () => fileInput.click());
+
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('drag-active');
+            });
+
+            dropzone.addEventListener('dragleave', () => {
+                dropzone.classList.remove('drag-active');
+            });
+
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('drag-active');
+                if (e.dataTransfer.files.length > 0) {
+                    handleZipOrFiles(e.dataTransfer.files);
+                }
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleZipOrFiles(e.target.files);
+                }
+            });
+
+            // Sample Loader Button
+            document.getElementById('btn-load-sample').addEventListener('click', loadSampleMaterial);
+
+            // Re-detect button
+            document.getElementById('btn-auto-remap').addEventListener('click', autoMapChannels);
+
+            // Geometry Buttons
+            document.querySelectorAll('.mesh-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.mesh-btn').forEach(b => {
+                        b.classList.remove('active', 'text-slate-300');
+                        b.classList.add('text-slate-400');
+                    });
+                    btn.classList.add('active', 'text-slate-300');
+                    btn.classList.remove('text-slate-400');
+                    createMesh(btn.dataset.mesh);
+                });
+            });
+
+            // Shader Parameter Sliders
+            setupSlider('param-tiling', 'val-tiling', v => {
+                state.params.tiling = parseFloat(v);
+                Object.keys(MAP_CHANNELS).forEach(k => {
+                    if (state.material[k]) state.material[k].repeat.set(v, v);
+                });
+            });
+
+            setupSlider('param-uvrot', 'val-uvrot', v => {
+                const rad = THREE.MathUtils.degToRad(v);
+                Object.keys(MAP_CHANNELS).forEach(k => {
+                    if (state.material[k]) state.material[k].rotation = rad;
+                });
+                return `${v}°`;
+            });
+
+            document.getElementById('param-basecolor').addEventListener('input', e => {
+                state.material.color.set(e.target.value);
+            });
+
+            setupSlider('param-roughness', 'val-roughness', v => {
+                state.material.roughness = parseFloat(v);
+            });
+
+            document.getElementById('param-invert-rough').addEventListener('change', e => {
+                state.params.invertRoughness = e.target.checked;
+                // Reverse roughness map logic if applied
+                if (state.material.roughnessMap) {
+                    state.material.roughnessMap.encoding = THREE.LinearEncoding;
+                    state.material.needsUpdate = true;
+                }
+            });
+
+            setupSlider('param-metalness', 'val-metalness', v => {
+                state.material.metalness = parseFloat(v);
+            });
+
+            setupSlider('param-normalscale', 'val-normalscale', v => {
+                state.params.normalScale = parseFloat(v);
+                if (state.material.normalScale) {
+                    const flip = state.params.normalFlipY ? -1 : 1;
+                    state.material.normalScale.set(v, v * flip);
+                }
+            });
+
+            document.getElementById('param-normal-flipy').addEventListener('change', e => {
+                state.params.normalFlipY = e.target.checked;
+                if (state.material.normalScale) {
+                    const flip = e.target.checked ? -1 : 1;
+                    state.material.normalScale.set(state.params.normalScale, state.params.normalScale * flip);
+                }
+            });
+
+            setupSlider('param-dispscale', 'val-dispscale', v => {
+                state.params.dispScale = parseFloat(v);
+                state.material.displacementScale = parseFloat(v);
+            });
+
+            setupSlider('param-dispbias', 'val-dispbias', v => {
+                state.params.dispBias = parseFloat(v);
+                state.material.displacementBias = parseFloat(v);
+            });
+
+            setupSlider('param-clearcoat', 'val-clearcoat', v => {
+                state.material.clearcoat = parseFloat(v);
+            });
+
+            setupSlider('param-transmission', 'val-transmission', v => {
+                state.material.transmission = parseFloat(v);
+            });
+
+            setupSlider('param-ior', 'val-ior', v => {
+                state.material.ior = parseFloat(v);
+            });
+
+            setupSlider('param-alphatest', 'val-alphatest', v => {
+                state.material.alphaTest = parseFloat(v);
+                state.material.needsUpdate = true;
+            });
+
+            // Environment Presets
+            document.querySelectorAll('.env-preset-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.env-preset-btn').forEach(b => {
+                        b.classList.remove('active', 'bg-blue-600/20', 'text-blue-300', 'border-blue-500/40');
+                        b.classList.add('bg-slate-800', 'text-slate-300', 'border-slate-700');
+                    });
+                    btn.classList.add('active', 'bg-blue-600/20', 'text-blue-300', 'border-blue-500/40');
+                    btn.classList.remove('bg-slate-800', 'text-slate-300', 'border-slate-700');
+                    setEnvironment(btn.dataset.env);
+                });
+            });
+
+            setupSlider('param-envrot', 'val-envrot', v => {
+                state.scene.backgroundRotation = new THREE.Euler(0, THREE.MathUtils.degToRad(v), 0);
+                state.scene.environmentRotation = new THREE.Euler(0, THREE.MathUtils.degToRad(v), 0);
+                return `${v}°`;
+            });
+
+            setupSlider('param-exposure', 'val-exposure', v => {
+                state.renderer.toneMappingExposure = parseFloat(v);
+            });
+
+            document.getElementById('param-show-grid').addEventListener('change', e => {
+                state.gridHelper.visible = e.target.checked;
+            });
+
+            document.getElementById('param-autorotate').addEventListener('change', e => {
+                state.controls.autoRotate = e.target.checked;
+                state.controls.autoRotateSpeed = 2.0;
+            });
+
+            // Inspect Mode Selection
+            document.getElementById('inspect-mode').addEventListener('change', e => {
+                setInspectMode(e.target.value);
+            });
+
+            // Reset Camera
+            document.getElementById('btn-reset-cam').addEventListener('click', () => {
+                state.camera.position.set(0, 0, 3.5);
+                state.controls.target.set(0, 0, 0);
+                state.controls.update();
+            });
+
+            // Capture Render Screenshot
+            document.getElementById('btn-screenshot').addEventListener('click', takeScreenshot);
+        }
+
+        function setupSlider(inputId, valId, callback) {
+            const input = document.getElementById(inputId);
+            const valEl = document.getElementById(valId);
+            input.addEventListener('input', e => {
+                const res = callback(e.target.value);
+                valEl.innerText = res !== undefined ? res : e.target.value;
+            });
+        }
+
+        // Channel Solo Inspector Mode
+        function setInspectMode(mode) {
+            state.params.inspectMode = mode;
+            if (mode === 'wireframe') {
+                state.material.wireframe = true;
+                return;
+            } else {
+                state.material.wireframe = false;
+            }
+
+            // Temporarily swap material maps for inspect mode
+            if (mode === 'full') {
+                applyTexturesToMaterial();
+            } else {
+                // Apply solo texture preview shader
+                const targetTex = state.material[mode];
+                if (targetTex) {
+                    state.material.map = targetTex;
+                    state.material.normalMap = null;
+                    state.material.roughnessMap = null;
+                    state.material.metalnessMap = null;
+                    state.material.displacementMap = null;
+                    state.material.aoMap = null;
+                    state.material.needsUpdate = true;
+                }
+            }
+        }
+
+        async function loadSampleMaterial() {
+            showLoading(true, "Generating Water Droplet PBR Sample...", "Creating procedural water drops and color maps");
+
+            // Synthetic procedural droplet pattern on canvas
+            const canvasCol = document.createElement('canvas');
+            canvasCol.width = 1024;
+            canvasCol.height = 1024;
+            const ctxCol = canvasCol.getContext('2d');
+            
+            ctxCol.fillStyle = '#2563eb';
+            ctxCol.fillRect(0, 0, 1024, 1024);
+
+            // Draw droplets
+            ctxCol.fillStyle = '#60a5fa';
+            for (let i = 0; i < 150; i++) {
+                const x = Math.random() * 1024;
+                const y = Math.random() * 1024;
+                const r = 5 + Math.random() * 25;
+                ctxCol.beginPath();
+                ctxCol.arc(x, y, r, 0, Math.PI * 2);
+                ctxCol.fill();
+            }
+
+            // Synthetic normal map for droplets
+            const canvasNorm = document.createElement('canvas');
+            canvasNorm.width = 1024;
+            canvasNorm.height = 1024;
+            const ctxNorm = canvasNorm.getContext('2d');
+            ctxNorm.fillStyle = 'rgb(128, 128, 255)';
+            ctxNorm.fillRect(0, 0, 1024, 1024);
+
+            const fileCol = new File([await (await fetch(canvasCol.toDataURL())).blob()], "WaterDropletsMixedBubbled001_COL_1K.jpg");
+            const fileNorm = new File([await (await fetch(canvasNorm.toDataURL())).blob()], "WaterDropletsMixedBubbled001_NRM_1K.jpg");
+
+            state.zipFiles = {
+                "WaterDropletsMixedBubbled001_COL_1K.jpg": fileCol,
+                "WaterDropletsMixedBubbled001_NRM_1K.jpg": fileNorm
+            };
+
+            const zipSummary = document.getElementById('zip-summary');
+            document.getElementById('zip-name').innerText = "WaterDropletsSample_PBR.zip";
+            document.getElementById('zip-file-count').innerText = "2 files";
+            zipSummary.classList.remove('hidden');
+
+            // Apply sample droplets transmission parameters
+            state.material.transmission = 0.85;
+            state.material.roughness = 0.1;
+            state.material.ior = 1.33; // Water IOR
+            document.getElementById('param-transmission').value = 0.85;
+            document.getElementById('val-transmission').innerText = "0.85";
+            document.getElementById('param-roughness').value = 0.1;
+            document.getElementById('val-roughness').innerText = "0.1";
+
+            await autoMapChannels();
+            showLoading(false);
+        }
+
+        // High Resolution Screenshot Generator
+        function takeScreenshot() {
+            state.renderer.render(state.scene, state.camera);
+            const dataURL = state.renderer.domElement.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `PBR_Material_Render_${Date.now()}.png`;
+            link.href = dataURL;
+            link.click();
+        }
+
+        // Overlay helper
+        function showLoading(show, title = '', subtext = '') {
+            const overlay = document.getElementById('loading-overlay');
+            if (show) {
+                document.getElementById('loading-text').innerText = title;
+                document.getElementById('loading-subtext').innerText = subtext;
+                overlay.classList.remove('hidden');
+            } else {
+                overlay.classList.add('hidden');
+            }
+        }
+
+        // Viewport resize handling
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            state.camera.aspect = width / height;
+            state.camera.updateProjectionMatrix();
+            state.renderer.setSize(width, height);
+        }
+
+        // Frame rendering & FPS monitor loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            state.controls.update();
+
+            // FPS Calculation
+            const now = performance.now();
+            state.fpsCounter++;
+            if (now - state.lastFpsUpdate >= 1000) {
+                document.getElementById('val-fps').innerText = state.fpsCounter;
+                state.fpsCounter = 0;
+                state.lastFpsUpdate = now;
+            }
+
+            state.renderer.render(state.scene, state.camera);
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initIcons();
+            initThreeScene();
+            bindUIEvents();
+            
+            // Auto-load built-in sample on start for immediate interactive preview
+            loadSampleMaterial();
+        });
+    </script>
+</body>
+</html>

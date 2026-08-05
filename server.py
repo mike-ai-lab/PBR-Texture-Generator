@@ -72,7 +72,7 @@ def generate_stream():
             return
 
         make_seamless = bool(data.get("make_seamless", False))
-        total_steps   = 5 if make_seamless else 4
+        total_steps   = (1 if make_seamless else 0) + 7  # albedo + 6 maps
         step          = [0]
 
         def emit(label):
@@ -81,7 +81,10 @@ def generate_stream():
 
         try:
             import cv2
-            from src.generators import generate_normal, generate_roughness, generate_ao
+            from src.generators import (
+                generate_normal, generate_roughness, generate_ao,
+                generate_height, generate_metalness, generate_emissive,
+            )
             from src.image_processing import _imread_safe
             from src.seamless import make_seamless as _make_seamless
 
@@ -115,12 +118,35 @@ def generate_stream():
             ao_path = os.path.join(mat_dir, f"{base}_ao.png")
             cv2.imwrite(ao_path, generate_ao(gray, float(data.get("ao_alpha", 1.5))))
 
+            yield emit("Generating height map…")
+            hgt_path = os.path.join(mat_dir, f"{base}_hgt.png")
+            cv2.imwrite(hgt_path, generate_height(gray, float(data.get("height_scale", 1.0))))
+
+            yield emit("Generating metalness map…")
+            met_path = os.path.join(mat_dir, f"{base}_met.png")
+            cv2.imwrite(met_path, generate_metalness(
+                gray,
+                float(data.get("metalness_threshold", 0.6)),
+                float(data.get("metalness_contrast", 4.0)),
+            ))
+
+            yield emit("Generating emissive map…")
+            emi_path = os.path.join(mat_dir, f"{base}_emi.png")
+            cv2.imwrite(emi_path, generate_emissive(
+                bgr,
+                float(data.get("emissive_threshold", 0.8)),
+                float(data.get("emissive_intensity", 2.0)),
+            ))
+
             # All files confirmed written — now encode
             maps = {
                 "albedo":    _b64(alb_path),
                 "normal":    _b64(nrm_path),
                 "roughness": _b64(rgh_path),
                 "ao":        _b64(ao_path),
+                "height":    _b64(hgt_path),
+                "metalness": _b64(met_path),
+                "emissive":  _b64(emi_path),
             }
             yield _sse("done", {"maps": maps, "mat_name": base})
 

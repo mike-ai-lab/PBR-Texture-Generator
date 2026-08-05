@@ -7,7 +7,10 @@ import os
 import shutil
 import numpy as np
 from PIL import Image as PILImage
-from src.generators import generate_normal, generate_roughness, generate_ao
+from src.generators import (
+    generate_normal, generate_roughness, generate_ao,
+    generate_height, generate_metalness, generate_emissive,
+)
 from src.seamless import make_seamless
 
 
@@ -40,6 +43,11 @@ def process_texture(
     roughness_beta: float = 50.0,
     ao_alpha: float = 1.5,
     ao_beta: float = -30.0,
+    height_scale: float = 1.0,
+    metalness_threshold: float = 0.6,
+    metalness_contrast: float = 4.0,
+    emissive_threshold: float = 0.8,
+    emissive_intensity: float = 2.0,
     make_seamless_flag: bool = False,
     seamless_blend: float = 0.25,
 ) -> dict[str, str]:
@@ -70,9 +78,14 @@ def process_texture(
     outputs = {"albedo": albedo_dest}
 
     maps = {
-        "normal":    (generate_normal(gray, normal_strength),                    f"{base}_nrm.png"),
-        "roughness": (generate_roughness(gray, roughness_alpha, roughness_beta), f"{base}_rgh.png"),
-        "ao":        (generate_ao(gray, ao_alpha, ao_beta),                      f"{base}_ao.png"),
+        "normal":     (generate_normal(gray, normal_strength),                      f"{base}_nrm.png"),
+        "roughness":  (generate_roughness(gray, roughness_alpha, roughness_beta),   f"{base}_rgh.png"),
+        "ao":         (generate_ao(gray, ao_alpha, ao_beta),                        f"{base}_ao.png"),
+        "height":     (generate_height(gray, height_scale),                         f"{base}_hgt.png"),
+        "metalness":  (generate_metalness(gray, metalness_threshold,
+                                          metalness_contrast),                       f"{base}_met.png"),
+        "emissive":   (generate_emissive(bgr, emissive_threshold,
+                                         emissive_intensity),                        f"{base}_emi.png"),
     }
 
     for key, (img, filename) in maps.items():
