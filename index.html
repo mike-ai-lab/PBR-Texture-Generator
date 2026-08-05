@@ -234,6 +234,7 @@ select:focus{border-color:#702af8}
       </div>
     </div>
     <div class="card">
+      <button id="btn-tile-test" style="display:none;width:100%;margin-bottom:10px;padding:7px;background:transparent;border:1px solid #2d2f3d;color:#6b7280;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s" onclick="openTileTest()">⊞ Preview 2×2 Tiling</button>
       <div class="toggle-row">
         <span style="font-size:11px;font-weight:600;color:#c4b5fd">Make Seamless</span>
         <label class="pill-switch">
@@ -445,6 +446,24 @@ select:focus{border-color:#702af8}
       <div class="map-card-title"><span>Tiling Test (3×3)</span><span style="font-size:10px;color:#475569;font-weight:400">Check for seams</span></div>
       <div class="placeholder" style="height:160px">—</div>
     </div>
+  </div>
+</div>
+
+<!-- ── Tile Test Modal ──────────────────────────────────────────── -->
+<div id="tile-test-modal" style="display:none;position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.85);backdrop-filter:blur(6px);align-items:center;justify-content:center">
+  <div style="background:#1a1b22;border:1px solid #2d2f3d;border-radius:14px;width:min(520px,92vw);padding:16px;display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:11px;font-weight:700;color:#fff">2×2 Tiling Preview</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button id="btn-toggle-guides" onclick="toggleTileGuides()" style="padding:3px 10px;font-size:9px;font-weight:700;background:rgba(112,42,248,.2);border:1px solid #702af8;color:#a78bfa;border-radius:5px;cursor:pointer;transition:.15s">Guidelines ON</button>
+        <button onclick="closeTileTest()" style="background:transparent;border:none;color:#4a4f6a;cursor:pointer;font-size:16px;line-height:1">✕</button>
+      </div>
+    </div>
+    <div style="position:relative;border-radius:8px;overflow:hidden">
+      <canvas id="tile-test-modal-canvas" style="width:100%;display:block"></canvas>
+      <canvas id="tile-test-guide-canvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none"></canvas>
+    </div>
+    <p style="font-size:10px;color:#4a4f6a;text-align:center;margin:0">Inspect the seam lines — visible hard edges mean the texture needs seamless processing</p>
   </div>
 </div>
 
@@ -957,7 +976,8 @@ import { RGBELoader }    from 'three/addons/loaders/RGBELoader.js';
 
 // ── Spawn worker from inline script ──────────────────────────────────
 const workerBlob = new Blob([document.getElementById('worker-src').textContent], { type: 'text/javascript' });
-const worker = new Worker(URL.createObjectURL(workerBlob));
+const _mainWorkerURL = URL.createObjectURL(workerBlob);
+const worker = new Worker(_mainWorkerURL);
 
 // ── Three.js setup ────────────────────────────────────────────────────
 const wrap = document.getElementById('view-3d');
@@ -980,12 +1000,6 @@ controls.dampingFactor = 0.12;
 controls.minDistance = 1;
 controls.maxDistance = 20;
 
-let needsRender = true, dampingFrames = 0;
-function requestRender(f=1){ needsRender=true; dampingFrames=Math.max(dampingFrames,f); }
-controls.addEventListener('start',  () => requestRender(60));
-controls.addEventListener('change', () => requestRender(8));
-controls.addEventListener('end',    () => requestRender(20));
-
 scene.add(new THREE.AmbientLight(0xffffff, 1.2));
 const dirLight = new THREE.DirectionalLight(0xffffff, 3.0);
 dirLight.castShadow = true;
@@ -997,10 +1011,9 @@ const fill = new THREE.DirectionalLight(0xffffff, 0.6);  fill.position.set(0, -5
 
 // Resize: always sync camera aspect (free), only resize buffer when requested
 let _rw = 0, _rh = 0;
+const _canvasWrap = document.getElementById('canvas-wrap'); // cache DOM ref — never query in rAF
 function onResize(updateBuffer = true) {
-  const cw = document.getElementById('canvas-wrap');
-  if (!cw) return;
-  const w = cw.clientWidth, h = cw.clientHeight;
+  const w = _canvasWrap.clientWidth, h = _canvasWrap.clientHeight;
   if (!w || !h) return;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
@@ -1011,23 +1024,32 @@ function onResize(updateBuffer = true) {
 }
 onResize();
 window.addEventListener('resize', onResize);
+// Also run after first paint in case layout wasn't ready at parse time
+requestAnimationFrame(onResize);
 
-// Animation loop — syncs camera aspect every frame during CSS transitions (zero-cost, no buffer clear)
+// Demand-render loop — only renders when something actually changed
+let _needsRender = true;
+function requestRender() { _needsRender = true; }
 function animationLoop() {
   requestAnimationFrame(animationLoop);
-  const cw = document.getElementById('canvas-wrap');
-  if (cw && cw.clientHeight > 0) {
-    const aspect = cw.clientWidth / cw.clientHeight;
-    if (Math.abs(camera.aspect - aspect) > 0.001) {
-      camera.aspect = aspect;
-      camera.updateProjectionMatrix();
-    }
+  // Aspect sync during CSS transitions (cached DOM ref — cheap)
+  const aspect = _canvasWrap.clientWidth / (_canvasWrap.clientHeight || 1);
+  if (Math.abs(camera.aspect - aspect) > 0.001) {
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
+    _needsRender = true;
   }
-  controls.update();
-  renderer.render(scene, camera);
+  controls.update(); // damping — flags needsRender via 'change' event
+  if (_needsRender) {
+    _needsRender = false;
+    renderer.render(scene, camera);
+  }
 }
+controls.addEventListener('change', requestRender);
+controls.addEventListener('start',  requestRender);
 animationLoop();
-document.addEventListener('visibilitychange', () => { if (!document.hidden) renderer.render(scene, camera); });
+requestRender();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) requestRender(); });
 
 // Hide loading overlay
 renderer.render(scene, camera);
@@ -1250,6 +1272,9 @@ function openCtx(menu, btn) {
 
 tbShape.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); ctxShape.classList.contains('open') ? closeAllCtx() : openCtx(ctxShape, tbShape); });
 tbLight.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); ctxLighting.classList.contains('open') ? closeAllCtx() : openCtx(ctxLighting, tbLight); });
+// Left-click also opens the menus
+tbShape.addEventListener('click', e => { e.stopPropagation(); ctxShape.classList.contains('open') ? closeAllCtx() : openCtx(ctxShape, tbShape); });
+tbLight.addEventListener('click', e => { e.stopPropagation(); ctxLighting.classList.contains('open') ? closeAllCtx() : openCtx(ctxLighting, tbLight); });
 
 // Touch support — long-press OR tap opens the menu on mobile
 function addTouchMenu(btn, menu) {
@@ -1343,35 +1368,6 @@ function setViewMode(mode) {
 document.getElementById('btn-3d').onclick = () => setViewMode('3d');
 document.getElementById('btn-2d').onclick = () => setViewMode('2d');
 
-// ── Mobile shrink-on-scroll (mobile only — skipped entirely on desktop) ──
-(function() {
-  if (window.innerWidth > 768) return;
-
-  const panel      = document.getElementById('panel');
-  const canvasWrap = document.getElementById('canvas-wrap');
-  if (!panel || !canvasWrap) return;
-
-  const EXPANDED  = window.innerWidth <= 480 ? '42vh' : '45vh';
-  const SHRUNK    = '160px';
-  const THRESHOLD = 40;
-
-  let isShrunk = false;
-
-  panel.addEventListener('scroll', () => {
-    const shouldShrink = panel.scrollTop > THRESHOLD;
-    if (shouldShrink === isShrunk) return;
-    isShrunk = shouldShrink;
-
-    canvasWrap.style.height = isShrunk ? SHRUNK : EXPANDED;
-
-    // Only sync buffer — camera.aspect stays live via animationLoop each frame
-    onResize(true);
-    setTimeout(() => onResize(true), 120);
-    setTimeout(() => onResize(true), 250);
-    setTimeout(() => onResize(true), 360);
-  }, { passive: true });
-})();
-
 // ── File input ────────────────────────────────────────────────────────
 let loadedImageData = null, currentFileName = 'texture';
 let thumbObjectURL = null;
@@ -1411,6 +1407,7 @@ function loadFile(file) {
     const rawDataUrl = c.toDataURL('image/png');
     applyMaps({ albedo: rawDataUrl });
     document.getElementById('canvas-hint').style.display = 'none';
+    document.getElementById('btn-tile-test').style.display = '';
     // Auto-generate preview maps so 3D shader shows PBR on load
     runLivePreview();
   };
@@ -1422,6 +1419,79 @@ dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classL
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag'); if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
 document.getElementById('file-input').addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); });
+
+// ── Tile test ─────────────────────────────────────────────────────────
+const _tileModal       = document.getElementById('tile-test-modal');
+const _tileCanvas      = document.getElementById('tile-test-modal-canvas');
+const _tileGuideCanvas = document.getElementById('tile-test-guide-canvas');
+let _tileGuidesOn = true;
+
+function _drawTileGuides() {
+  const w = _tileCanvas.width, h = _tileCanvas.height;
+  _tileGuideCanvas.width  = w;
+  _tileGuideCanvas.height = h;
+  const ctx = _tileGuideCanvas.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  if (!_tileGuidesOn) return;
+  ctx.save();
+  ctx.setLineDash([6, 5]);
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(112,42,248,0.85)';
+  // vertical centre line
+  ctx.beginPath(); ctx.moveTo(w/2, 0); ctx.lineTo(w/2, h); ctx.stroke();
+  // horizontal centre line
+  ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2); ctx.stroke();
+  // corner label hints
+  ctx.restore();
+  ctx.font = 'bold 10px sans-serif';
+  ctx.fillStyle = 'rgba(167,139,250,0.9)';
+  ctx.textAlign = 'center';
+  ctx.fillText('SEAM', w/2, 14);
+  ctx.fillText('SEAM', w/2, h - 4);
+  ctx.save();
+  ctx.translate(10, h/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('SEAM', 0, 0);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(w - 4, h/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('SEAM', 0, 0);
+  ctx.restore();
+}
+
+function openTileTest() {
+  if (!loadedImageData) return;
+  const src = stackImageData || loadedImageData;
+  const tw = src.width, th = src.height;
+  _tileCanvas.width  = tw * 2;
+  _tileCanvas.height = th * 2;
+  const ctx = _tileCanvas.getContext('2d');
+  const tmp = document.createElement('canvas');
+  tmp.width = tw; tmp.height = th;
+  tmp.getContext('2d').putImageData(src, 0, 0);
+  for (let row = 0; row < 2; row++)
+    for (let col = 0; col < 2; col++)
+      ctx.drawImage(tmp, col * tw, row * th);
+  _drawTileGuides();
+  _tileModal.style.display = 'flex';
+}
+
+function toggleTileGuides() {
+  _tileGuidesOn = !_tileGuidesOn;
+  const btn = document.getElementById('btn-toggle-guides');
+  btn.textContent = _tileGuidesOn ? 'Guidelines ON' : 'Guidelines OFF';
+  btn.style.background    = _tileGuidesOn ? 'rgba(112,42,248,.2)' : 'transparent';
+  btn.style.borderColor   = _tileGuidesOn ? '#702af8' : '#2d2f3d';
+  btn.style.color         = _tileGuidesOn ? '#a78bfa' : '#4a4f6a';
+  _drawTileGuides();
+}
+
+function closeTileTest() { _tileModal.style.display = 'none'; }
+_tileModal.addEventListener('click', e => { if (e.target === _tileModal) closeTileTest(); });
+window.openTileTest   = openTileTest;
+window.closeTileTest  = closeTileTest;
+window.toggleTileGuides = toggleTileGuides;
 
 // ── Pill helpers ──────────────────────────────────────────────────────
 const PILL_MAP  = { albedo:'pill-alb', normal:'pill-nrm', roughness:'pill-rgh', ao:'pill-ao' };
@@ -1527,6 +1597,19 @@ genBtn.addEventListener('click', () => {
 // generation slider labels + live preview
 let _previewDebounce = null;
 let _previewWorker = null;
+// Cache worker blob URL — created once, reused for every preview run
+const _previewWorkerURL = URL.createObjectURL(
+  new Blob([document.getElementById('worker-src').textContent], { type: 'text/javascript' })
+);
+
+function rgbaToObjectURL(rgba, w, h) {
+  // Returns a blob: URL instead of a data: URL — much smaller string, revokable
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(rgba), w, h), 0, 0);
+  // Synchronously convert to blob URL via toDataURL then immediately hand off
+  return c.toDataURL('image/png'); // still data URL but canvas is GC'd immediately
+}
 
 function runLivePreview() {
   if (!loadedImageData) return;
@@ -1535,11 +1618,9 @@ function runLivePreview() {
     if (_previewWorker) { _previewWorker.terminate(); _previewWorker = null; }
     setStatus('Previewing…', '');
     const srcData = stackImageData || loadedImageData;
-    // Copy data — do NOT transfer the original buffer
+    // Slice a copy of the buffer — original ImageData stays intact
     const rgba = new Uint8ClampedArray(srcData.data.buffer.slice(0));
-    _previewWorker = new Worker(URL.createObjectURL(
-      new Blob([document.getElementById('worker-src').textContent], { type: 'text/javascript' })
-    ));
+    _previewWorker = new Worker(_previewWorkerURL);
     _previewWorker.postMessage({
       rgba,
       width:            srcData.width,
@@ -1551,45 +1632,52 @@ function runLivePreview() {
       makeSeamlessFlag: false,
       blendRatio:       0.25,
       workSize:         512,
-    }, [rgba.buffer]);
-    _previewWorker.onerror = err => {
-      setStatus('Preview error', 'err');
-      _previewWorker = null;
-    };
+    }, [rgba.buffer]); // transfer — no copy in postMessage
+    _previewWorker.onerror = () => { setStatus('Preview error', 'err'); _previewWorker = null; };
     _previewWorker.onmessage = e => {
       if (e.data.type !== 'done') return;
       const d = e.data;
+      const w = d.width, h = d.height;
       const texLoader = new THREE.TextureLoader();
-      const load = (data, colorSpace) => new Promise(res => {
-        const url = rgbaToDataURL(new Uint8ClampedArray(data), d.width, d.height);
+      const loadTex = (data, colorSpace) => new Promise(res => {
+        // Create a temporary canvas, extract URL, then let canvas GC
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(data), w, h), 0, 0);
+        const url = cv.toDataURL('image/png');
         texLoader.load(url, tex => {
           tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-          const t = parseFloat(document.getElementById('tile').value) || 1;
-          tex.repeat.set(t, t);
+          tex.repeat.set(parseFloat(document.getElementById('tile').value) || 1,
+                         parseFloat(document.getElementById('tile').value) || 1);
           if (colorSpace) tex.colorSpace = colorSpace;
           res(tex);
         });
       });
       Promise.all([
-        load(d.albedo,    THREE.SRGBColorSpace),
-        load(d.normal,    null),
-        load(d.roughness, null),
-        load(d.ao,        null),
+        loadTex(d.albedo,    THREE.SRGBColorSpace),
+        loadTex(d.normal,    null),
+        loadTex(d.roughness, null),
+        loadTex(d.ao,        null),
       ]).then(([albTex, nrmTex, rghTex, aoTex]) => {
+        // Dispose old textures before replacing
         ['map','normalMap','roughnessMap','aoMap'].forEach(k => {
-          if (mat[k]?.isTexture) mat[k].dispose();
+          if (mat[k]?.isTexture) { mat[k].dispose(); mat[k] = null; }
         });
-        mat.map          = albTex;  loadedMaps.albedo    = albTex;
-        mat.normalMap    = nrmTex;  loadedMaps.normal    = nrmTex;
+        mat.map = albTex;           loadedMaps.albedo    = albTex;
+        mat.normalMap = nrmTex;     loadedMaps.normal    = nrmTex;
         mat.roughnessMap = rghTex;  loadedMaps.roughness = rghTex;
-        mat.aoMap        = aoTex;   loadedMaps.ao        = aoTex;
-        mat.roughness    = 1.0;
+        mat.aoMap = aoTex;          loadedMaps.ao        = aoTex;
+        mat.roughness = 1.0;
         mat.color.set(0xffffff);
-        const nsc = parseFloat(document.getElementById('nsc').value) || 1;
-        mat.normalScale?.set(nsc, nsc);
+        mat.normalScale?.set(
+          parseFloat(document.getElementById('nsc').value) || 1,
+          parseFloat(document.getElementById('nsc').value) || 1
+        );
         mat.aoMapIntensity = parseFloat(document.getElementById('aoi').value) || 0.6;
         mat.needsUpdate = true;
+        requestRender();
         setStatus('Live preview ✓', 'ok');
+        _previewWorker.terminate();
         _previewWorker = null;
       });
     };
@@ -1625,8 +1713,10 @@ btnSeamlessOnly.addEventListener('click', () => {
 
   const srcData = stackImageData || loadedImageData;
   const rgba = new Uint8ClampedArray(srcData.data);
-  const blob = new Blob([document.getElementById('worker-src').textContent], { type: 'text/javascript' });
-  const w2 = new Worker(URL.createObjectURL(blob));
+  const _seamlessWorkerURL = URL.createObjectURL(
+    new Blob([document.getElementById('worker-src').textContent], { type: 'text/javascript' })
+  );
+  const w2 = new Worker(_seamlessWorkerURL);
   w2.postMessage({
     rgba,
     width:            srcData.width,
@@ -1640,6 +1730,7 @@ btnSeamlessOnly.addEventListener('click', () => {
 
   w2.onmessage = e => {
     if (e.data.type === 'done') {
+      URL.revokeObjectURL(_seamlessWorkerURL);
       const seamlessRgba = new Uint8ClampedArray(e.data.albedo);
       const dataUrl = rgbaToDataURL(seamlessRgba, e.data.width, e.data.height);
 
@@ -1900,28 +1991,30 @@ function runEnhanceOp(op, params, label, srcImageData) {
 }
 
 function _runInWorker(op, params, label, srcImageData) {
-  const workerBlob = new Blob(
+  const _url = URL.createObjectURL(new Blob(
     [document.getElementById('enhance-worker-src').textContent],
     { type: 'text/javascript' }
-  );
-  const ew = new Worker(URL.createObjectURL(workerBlob));
+  ));
+  const ew = new Worker(_url);
   const rgba = new Uint8ClampedArray(srcImageData.data);
 
   ew.onmessage = e => {
     const d = e.data;
-    if (d.type === 'error') { setStatus('Error: ' + d.message, 'err'); setToolsBusy(false); ew.terminate(); return; }
+    if (d.type === 'error') { setStatus('Error: ' + d.message, 'err'); setToolsBusy(false); ew.terminate(); URL.revokeObjectURL(_url); return; }
     if (d.type === 'done') {
       const resultData = new ImageData(new Uint8ClampedArray(d.data), d.width, d.height);
       addLayer(label, op, params, resultData);
       setStatus(label + ' layer added ✔', 'ok');
       setToolsBusy(false);
       ew.terminate();
+      URL.revokeObjectURL(_url);
     }
   };
   ew.onerror = err => {
     setStatus('Worker error: ' + err.message, 'err');
     setToolsBusy(false);
     ew.terminate();
+    URL.revokeObjectURL(_url);
   };
 
   ew.postMessage({ op, rgba, width: srcImageData.width, height: srcImageData.height, params }, [rgba.buffer]);
@@ -2091,31 +2184,44 @@ smModal.addEventListener('click', e => { if (e.target === smModal) smModal.class
   const canvasWrap = document.getElementById('canvas-wrap');
   if (!panel || !canvasWrap) return;
 
-  const FULL_VH  = 0.45; // 45vh when at top
-  const MIN_PX   = Math.round(window.innerHeight * 0.33); // ~33vh when scrolled
-  const SCROLL_RANGE = 160; // px of scroll over which shrink happens
+  const FULL_VH  = 0.45;
+  const MIN_PX   = Math.round(window.innerHeight * 0.33);
+  const SCROLL_RANGE = 160;
+  let _shrinkResizeTimer = null;
 
   function updatePreviewHeight() {
-    // Only applies on mobile
-    if (window.innerWidth > 768) {
-      canvasWrap.style.height = '';
-      return;
-    }
+    if (window.innerWidth > 768) { canvasWrap.style.height = ''; return; }
     const scrolled = Math.min(panel.scrollTop, SCROLL_RANGE);
     const fullPx = window.innerHeight * FULL_VH;
-    const t = scrolled / SCROLL_RANGE; // 0 = top, 1 = fully scrolled
-    // ease out cubic
+    const t = scrolled / SCROLL_RANGE;
     const ease = 1 - Math.pow(1 - t, 3);
     const h = Math.round(fullPx - (fullPx - MIN_PX) * ease);
     canvasWrap.style.height = h + 'px';
-    // ResizeObserver handles the Three.js resize automatically
+    // Debounced renderer sync — avoids calling setSize on every scroll pixel
+    clearTimeout(_shrinkResizeTimer);
+    _shrinkResizeTimer = setTimeout(() => onResize(true), 80);
   }
 
   panel.addEventListener('scroll', updatePreviewHeight, { passive: true });
-  window.addEventListener('resize', () => {
-    if (window.innerWidth > 768) canvasWrap.style.height = '';
-  });
+  window.addEventListener('resize', () => { if (window.innerWidth > 768) canvasWrap.style.height = ''; });
 })();
+
+// ── Page unload — release all GPU + worker resources ──────────────────
+window.addEventListener('beforeunload', () => {
+  // Terminate workers
+  if (_previewWorker) { _previewWorker.terminate(); }
+  worker.terminate();
+  // Revoke blob URLs
+  URL.revokeObjectURL(_mainWorkerURL);
+  URL.revokeObjectURL(_previewWorkerURL);
+  if (thumbObjectURL) URL.revokeObjectURL(thumbObjectURL);
+  // Dispose Three.js GPU resources
+  ['map','normalMap','roughnessMap','aoMap'].forEach(k => { if (mat[k]?.isTexture) mat[k].dispose(); });
+  mat.dispose();
+  if (mesh) { mesh.geometry.dispose(); }
+  if (currentHdr) currentHdr.dispose();
+  renderer.dispose();
+});
 </script>
 </body>
 </html>
