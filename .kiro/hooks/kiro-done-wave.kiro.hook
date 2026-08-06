@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "👋 Kiro Done Wave",
+  "description": "Fires a Windows taskbar balloon notification with a wave emoji every time Kiro finishes a task",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "python done_notify.py"
+  }
+}

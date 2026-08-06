@@ -314,6 +314,7 @@ self.onmessage = function(e) {
           heightScale, heightContrast, heightInvert,
           metalnessThreshold, metalnessContrast,
           emissiveThreshold, emissiveIntensity,
+          enableNormal, enableRoughness, enableAO,
           enableHeight, enableMetalness, enableEmissive,
           makeSeamlessFlag, blendRatio, workSize, seamlessOnlyMode } = e.data;
 
@@ -332,7 +333,8 @@ self.onmessage = function(e) {
 
   // Count enabled maps for progress
   const extraMaps = (enableHeight ? 1 : 0) + (enableMetalness ? 1 : 0) + (enableEmissive ? 1 : 0);
-  const total = (makeSeamlessFlag ? 5 : 4) + extraMaps;
+  const baseMaps = 1 + (enableNormal ? 1 : 0) + (enableRoughness ? 1 : 0) + (enableAO ? 1 : 0); // albedo + enabled base maps
+  const total = (makeSeamlessFlag ? 1 : 0) + baseMaps + extraMaps;
   let step = makeSeamlessFlag ? 1 : 0;
 
   const gray = new Float32Array(width * height);
@@ -341,14 +343,20 @@ self.onmessage = function(e) {
 
   self.postMessage({ type: 'progress', step: ++step, total, label: 'Saving albedo…' });
 
-  self.postMessage({ type: 'progress', step: ++step, total, label: 'Generating normal map…' });
-  const nrmData = generateNormal(gray, width, height, normalStrength);
+  let nrmData = null, rghData = null, aoData = null;
 
-  self.postMessage({ type: 'progress', step: ++step, total, label: 'Generating roughness map…' });
-  const rghData = generateRoughness(gray, width, height, roughAlpha, roughBeta);
-
-  self.postMessage({ type: 'progress', step: ++step, total, label: 'Generating AO map…' });
-  const aoData = generateAO(gray, width, height, aoAlpha);
+  if (enableNormal !== false) {
+    self.postMessage({ type: 'progress', step: ++step, total, label: 'Generating normal map…' });
+    nrmData = generateNormal(gray, width, height, normalStrength);
+  }
+  if (enableRoughness !== false) {
+    self.postMessage({ type: 'progress', step: ++step, total, label: 'Generating roughness map…' });
+    rghData = generateRoughness(gray, width, height, roughAlpha, roughBeta);
+  }
+  if (enableAO !== false) {
+    self.postMessage({ type: 'progress', step: ++step, total, label: 'Generating AO map…' });
+    aoData = generateAO(gray, width, height, aoAlpha);
+  }
 
   let hgtData = null, metData = null, emiData = null;
 
@@ -365,7 +373,10 @@ self.onmessage = function(e) {
     emiData = generateEmissive(pixels, width, height, emissiveThreshold ?? 0.8, emissiveIntensity ?? 2.0);
   }
 
-  const transfers = [pixels.buffer, nrmData.buffer, rghData.buffer, aoData.buffer];
+  const transfers = [pixels.buffer];
+  if (nrmData) transfers.push(nrmData.buffer);
+  if (rghData) transfers.push(rghData.buffer);
+  if (aoData)  transfers.push(aoData.buffer);
   if (hgtData) transfers.push(hgtData.buffer);
   if (metData) transfers.push(metData.buffer);
   if (emiData) transfers.push(emiData.buffer);

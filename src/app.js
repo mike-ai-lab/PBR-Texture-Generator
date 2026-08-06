@@ -331,15 +331,119 @@ function _buildZip(files) {
   return out;
 }
 
+// Build a PNG data URL from an ImageData-like source on a canvas
+function _imageDataToDataURL(src, w, h) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  c.getContext('2d').putImageData(src instanceof ImageData ? src : new ImageData(new Uint8ClampedArray(src), w, h), 0, 0);
+  return c.toDataURL('image/png');
+}
+
+// Build a 2x2 tiled preview data URL from a source image data URL
+function _buildTilePreview(dataUrl) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width * 2; c.height = img.height * 2;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, img.width, 0);
+      ctx.drawImage(img, 0, img.height);
+      ctx.drawImage(img, img.width, img.height);
+      res(c.toDataURL('image/png'));
+    };
+    img.src = dataUrl;
+  });
+}
+
+// Build a 3D shader preview — zooms camera out slightly for framing, renders, restores
+function _buildShaderPreview() {
+  try {
+    const origPos = camera.position.clone();
+    camera.position.multiplyScalar(1.35);
+    camera.updateProjectionMatrix();
+    renderer.render(scene, camera);
+    const dataUrl = renderer.domElement.toDataURL('image/png');
+    camera.position.copy(origPos);
+    camera.updateProjectionMatrix();
+    renderer.render(scene, camera);
+    return dataUrl;
+  } catch { return null; }
+}
+
+// Build a 2D flat material preview — composite: albedo + AO darkening + emissive overlay
+function _build2DPreview(maps) {
+  return new Promise(res => {
+    const albedoUrl = maps.albedo;
+    if (!albedoUrl) { res(null); return; }
+    const img = new Image();
+    img.onload = () => {
+      const w = img.width, h = img.height;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      // Base: albedo
+      ctx.drawImage(img, 0, 0);
+      // AO darkening
+      if (maps.ao) {
+        const aoImg = new Image();
+        aoImg.onload = () => {
+          ctx.save();
+          ctx.globalCompositeOperation = 'multiply';
+          ctx.globalAlpha = 0.6;
+          ctx.drawImage(aoImg, 0, 0, w, h);
+          ctx.restore();
+          applyEmissive();
+        };
+        aoImg.src = maps.ao;
+      } else { applyEmissive(); }
+      function applyEmissive() {
+        if (maps.emissive) {
+          const emiImg = new Image();
+          emiImg.onload = () => {
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+            ctx.globalAlpha = 0.8;
+            ctx.drawImage(emiImg, 0, 0, w, h);
+            ctx.restore();
+            res(c.toDataURL('image/png'));
+          };
+          emiImg.src = maps.emissive;
+        } else { res(c.toDataURL('image/png')); }
+      }
+    };
+    img.src = albedoUrl;
+  });
+}
+
+function _dataUrlToBytes(dataUrl) {
+  const b64 = dataUrl.split(',')[1];
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
 async function downloadZip(maps, name) {
   const files = [];
+  // Map textures
   for (const [key, dataUrl] of Object.entries(maps)) {
-    // Convert data URL to Uint8Array
-    const b64 = dataUrl.split(',')[1];
-    const bin = atob(b64);
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-    files.push({ name: `${name}_${key}.png`, data: arr });
+    files.push({ name: `${name}_${key}.png`, data: _dataUrlToBytes(dataUrl) });
+  }
+  // 3D shader preview
+  const shaderPreview = _buildShaderPreview();
+  if (shaderPreview) files.push({ name: `${name}_preview_3d.png`, data: _dataUrlToBytes(shaderPreview) });
+  // 2D flat material preview
+  const preview2d = await _build2DPreview(maps);
+  if (preview2d) files.push({ name: `${name}_preview_2d.png`, data: _dataUrlToBytes(preview2d) });
+  // 2x2 tiled preview
+  const tileSource = maps.albedo
+    || (stackImageData ? _imageDataToDataURL(stackImageData, stackImageData.width, stackImageData.height) : null)
+    || (loadedImageData ? _imageDataToDataURL(loadedImageData, loadedImageData.width, loadedImageData.height) : null);
+  if (tileSource) {
+    const tileUrl = await _buildTilePreview(tileSource);
+    files.push({ name: `${name}_tiled_2x2.png`, data: _dataUrlToBytes(tileUrl) });
   }
   const zipData = _buildZip(files);
   const blob = new Blob([zipData], { type: 'application/zip' });
@@ -708,6 +812,9 @@ genBtn.addEventListener('click', () => {
     metalnessContrast:   +document.getElementById('met-contrast').value,
     emissiveThreshold:   +document.getElementById('emi-threshold').value,
     emissiveIntensity:   +document.getElementById('emi-intensity').value,
+    enableNormal:    document.getElementById('eye-normal')?.classList.contains('active') ?? true,
+    enableRoughness: document.getElementById('eye-roughness')?.classList.contains('active') ?? true,
+    enableAO:        document.getElementById('eye-ao')?.classList.contains('active') ?? true,
     enableHeight:    document.getElementById('eye-height')?.classList.contains('active') ?? false,
     enableMetalness: document.getElementById('eye-metalness')?.classList.contains('active') ?? false,
     enableEmissive:  document.getElementById('eye-emissive')?.classList.contains('active') ?? false,
@@ -748,7 +855,7 @@ genBtn.addEventListener('click', () => {
         maps.normal = rgbaToDataURL(new Uint8ClampedArray(d.normal), d.width, d.height);
         setPillDone(PILL_MAP['normal']);
       }
-      if (d.roughness) {
+      if (d.roughness && eyeOn('roughness')) {
         maps.roughness = rgbaToDataURL(new Uint8ClampedArray(d.roughness), d.width, d.height);
         setPillDone(PILL_MAP['roughness']);
       }
@@ -838,6 +945,9 @@ function runLivePreview(group = 'all', sliderId = null) {
       metalnessContrast:   +document.getElementById('met-contrast').value,
       emissiveThreshold:   +document.getElementById('emi-threshold').value,
       emissiveIntensity:   +document.getElementById('emi-intensity').value,
+      enableNormal:    group === 'normal'    || group === 'all',
+      enableRoughness: group === 'roughness' || group === 'all',
+      enableAO:        group === 'ao'        || group === 'all',
       enableHeight:    group === 'height'    || (group === 'all' && +document.getElementById('hgt-scale').value > 0),
       enableMetalness: group === 'metalness' || (group === 'all' && +document.getElementById('met-contrast').value > 1),
       enableEmissive:  group === 'emissive'  || (group === 'all' && +document.getElementById('emi-intensity').value > 0),
@@ -870,10 +980,14 @@ function runLivePreview(group = 'all', sliderId = null) {
       // Build only the entries for the maps this group produces
       const texEntries = [];
       if (group === 'all' || group === 'normal') {
-        if (d.albedo)    texEntries.push(['albedo',    d.albedo,    THREE.SRGBColorSpace]);
-        if (d.normal)    texEntries.push(['normal',    d.normal,    null]);
+        if (d.albedo) texEntries.push(['albedo', d.albedo, THREE.SRGBColorSpace]);
+        if (d.normal) texEntries.push(['normal', d.normal, null]);
+      }
+      if (group === 'all' || group === 'roughness') {
         if (d.roughness) texEntries.push(['roughness', d.roughness, null]);
-        if (d.ao)        texEntries.push(['ao',        d.ao,        null]);
+      }
+      if (group === 'all' || group === 'ao') {
+        if (d.ao) texEntries.push(['ao', d.ao, null]);
       }
       if ((group === 'all' || group === 'height')    && d.heightMap) texEntries.push(['height',    d.heightMap, null]);
       if ((group === 'all' || group === 'metalness') && d.metalness) texEntries.push(['metalness', d.metalness, null]);
@@ -902,6 +1016,8 @@ function runLivePreview(group = 'all', sliderId = null) {
           mat.color.set(0xffffff);
           const nsc = parseFloat(document.getElementById('nsc').value) || 1;
           mat.normalScale?.set(nsc, nsc);
+        }
+        if (group === 'all' || group === 'ao') {
           mat.aoMapIntensity = parseFloat(document.getElementById('aoi').value) || 0.6;
         }
         if ((group === 'all' || group === 'emissive') && d.emissive) {
@@ -980,6 +1096,8 @@ const _sliderGroup = {
 // Maps each slider group to its eye button ID
 const _groupEye = {
   'normal':    'eye-normal',
+  'roughness': 'eye-roughness',
+  'ao':        'eye-ao',
   'height':    'eye-height',
   'metalness': 'eye-metalness',
   'emissive':  'eye-emissive',
@@ -999,7 +1117,9 @@ function sliderGroup(entries, group) {
   });
 }
 
-sliderGroup([['ns','vns',0], ['ra','vra',2], ['rb','vrb',0], ['aogen','vaogen',1]], 'normal');
+sliderGroup([['ns','vns',0]], 'normal');
+sliderGroup([['ra','vra',2], ['rb','vrb',0]], 'roughness');
+sliderGroup([['aogen','vaogen',1]], 'ao');
 sliderGroup([['met-threshold','vmetth',2], ['met-contrast','vmetcon',1]], 'metalness');
 sliderGroup([['emi-threshold','vemith',2], ['emi-intensity','vemiint',1]], 'emissive');
 sliderGroup([['hgt-contrast','vhgtcontrast',1]], 'height');
@@ -1078,6 +1198,12 @@ btnSeamlessOnly.addEventListener('click', () => {
       btnSeamlessOnly.disabled = false;
       btnSeamlessOnly.textContent = '⬡ Make Seamless Only';
       w2.terminate();
+
+      // If maps were already generated, re-generate them from the new seamless base
+      if (lastMaps) {
+        setStatus('Re-generating maps from seamless texture…', '');
+        genBtn.click();
+      }
     }
   };
 });
@@ -1129,6 +1255,7 @@ function regenMap(key) {
     metalnessContrast:  +document.getElementById('met-contrast').value,
     emissiveThreshold:  +document.getElementById('emi-threshold').value,
     emissiveIntensity:  +document.getElementById('emi-intensity').value,
+    enableNormal: true, enableRoughness: true, enableAO: true,
     enableHeight: true, enableMetalness: true, enableEmissive: true,
     makeSeamlessFlag: false, blendRatio: 0.25, workSize: 512,
   }, [rgba.buffer]);
@@ -1199,18 +1326,22 @@ function openMapPreview(key) {
   _mpTitle.style.color = meta.color;
   _mpImg.src = lastMaps[key];
   _mpImg.onload = () => { _mpReset(); };
-  // Build info chips
+  // Build info panel
   const p = mapParams[key] || _currentParams();
   const src = stackImageData || loadedImageData;
   const chips = [
-    `<span class="mp-info-chip">Size <b>${src?.width || '?'}×${src?.height || '?'} px</b></span>`,
-    `<span class="mp-info-chip">Type <b>${meta.label.split('(')[0].trim()}</b></span>`,
+    `<span class="mp-info-chip">Size <b>${src?.width || '?'} × ${src?.height || '?'} px</b></span>`,
   ];
-  if (key === 'normal')    chips.push(`<span class="mp-info-chip">Strength <b>${p.normalStrength ?? '?'}</b></span>`);
-  if (key === 'roughness') chips.push(`<span class="mp-info-chip">Alpha <b>${p.roughAlpha ?? '?'}</b></span>`, `<span class="mp-info-chip">Offset <b>${p.roughBeta ?? '?'}</b></span>`);
-  if (key === 'ao')        chips.push(`<span class="mp-info-chip">Intensity <b>${p.aoAlpha ?? '?'}</b></span>`);
-  chips.push(`<span class="mp-info-chip" style="color:#6b7280">${meta.desc}</span>`);
-  _mpInfo.innerHTML = chips.join('');
+  if (key === 'normal')    chips.push(`<span class="mp-info-chip">Intensity <b>${p.normalStrength ?? '?'}</b></span>`);
+  if (key === 'roughness') chips.push(`<span class="mp-info-chip">Scale <b>${p.roughAlpha ?? '?'}</b></span>`, `<span class="mp-info-chip">Bias <b>${p.roughBeta ?? '?'}</b></span>`);
+  if (key === 'ao')        chips.push(`<span class="mp-info-chip">Strength <b>${p.aoAlpha ?? '?'}</b></span>`);
+  if (key === 'height')    chips.push(`<span class="mp-info-chip">Scale <b>${p.heightScale ?? '?'}</b></span>`, `<span class="mp-info-chip">Contrast <b>${p.heightContrast ?? '?'}</b></span>`);
+  if (key === 'metalness') chips.push(`<span class="mp-info-chip">Threshold <b>${p.metalnessThreshold ?? '?'}</b></span>`, `<span class="mp-info-chip">Contrast <b>${p.metalnessContrast ?? '?'}</b></span>`);
+  if (key === 'emissive')  chips.push(`<span class="mp-info-chip">Threshold <b>${p.emissiveThreshold ?? '?'}</b></span>`, `<span class="mp-info-chip">Intensity <b>${p.emissiveIntensity ?? '?'}</b></span>`);
+  _mpInfo.innerHTML = `
+    <div class="mp-info-label" style="color:${meta.color}">${meta.label}</div>
+    <div class="mp-info-desc">${meta.desc}</div>
+    <div class="mp-info-chips">${chips.join('')}</div>`;
   _mpDl.onclick = () => downloadMap(key);
   _mpModal.classList.add('open');
 }

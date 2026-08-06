@@ -64,8 +64,11 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 #map-preview-toolbar{position:absolute;top:8px;right:8px;display:flex;gap:4px}
 .mp-tb-btn{width:28px;height:28px;background:rgba(14,14,20,.9);border:1px solid rgba(255,255,255,.1);border-radius:7px;color:#e2e8f0;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
 .mp-tb-btn:hover{background:rgba(112,42,248,.2);border-color:#702af8}
-#map-preview-info{padding:10px 16px;border-top:1px solid #2d2f3d;display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0}
-.mp-info-chip{font-size:9px;color:#475569;background:#111218;border:1px solid #2d2f3d;border-radius:5px;padding:2px 8px;white-space:nowrap}
+#map-preview-info{padding:12px 16px;border-top:1px solid #2d2f3d;flex-shrink:0;background:#111218}
+.mp-info-label{font-size:13px;font-weight:700;margin-bottom:4px}
+.mp-info-desc{font-size:10px;color:#64748b;margin-bottom:8px}
+.mp-info-chips{display:flex;flex-wrap:wrap;gap:5px}
+.mp-info-chip{font-size:10px;color:#94a3b8;background:#1a1b22;border:1px solid #2d2f3d;border-radius:6px;padding:3px 10px}
 .mp-info-chip b{color:#a78bfa;font-weight:600}
 #map-preview-footer{padding:8px 16px;border-top:1px solid #2d2f3d;display:flex;justify-content:flex-end;flex-shrink:0}
 #map-preview-dl{padding:7px 16px;background:#702af8;color:#fff;border:none;border-radius:7px;font-size:10px;font-weight:700;cursor:pointer;transition:.15s}
@@ -254,42 +257,53 @@ select:focus{border-color:#702af8}
     <div class="sec-title">Map Generation</div>
     <div class="card">
       <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
-        <span>Normal &amp; Surface Maps</span>
+        <span>Normal Map</span>
+        <button class="map-eye-tog active" id="eye-normal" title="Toggle Normal in preview" onclick="toggleMapEye('normal',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
       </div>
-      <div class="ctrl">
+      <div class="ctrl" style="margin-bottom:0">
         <div class="ctrl-row">
-          <span>Normal Intensity</span>
+          <span>Intensity</span>
           <div style="display:flex;align-items:center;gap:6px">
             <span class="sl-spinner" id="spin-ns"></span><b id="vns">0</b>
-            <button class="map-eye-tog active" id="eye-normal" title="Toggle Normal in preview" onclick="toggleMapEye('normal',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
           </div>
         </div>
         <input type="range" id="ns" min="0" max="30" step="1" value="0">
       </div>
+    </div>
+    <div class="card">
+      <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Roughness Map</span>
+        <button class="map-eye-tog active" id="eye-roughness" title="Toggle Roughness in preview" onclick="toggleMapEye('roughness',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+      </div>
       <div class="ctrl">
         <div class="ctrl-row">
-          <span>Roughness Scale</span>
+          <span>Scale</span>
           <div style="display:flex;align-items:center;gap:6px">
             <span class="sl-spinner" id="spin-ra"></span><b id="vra">0.00</b>
           </div>
         </div>
         <input type="range" id="ra" min="0.0" max="2.0" step="0.05" value="0">
       </div>
-      <div class="ctrl">
+      <div class="ctrl" style="margin-bottom:0">
         <div class="ctrl-row">
-          <span>Roughness Bias</span>
+          <span>Bias</span>
           <div style="display:flex;align-items:center;gap:6px">
             <span class="sl-spinner" id="spin-rb"></span><b id="vrb">0</b>
           </div>
         </div>
         <input type="range" id="rb" min="-100" max="100" step="1" value="0">
       </div>
+    </div>
+    <div class="card">
+      <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Ambient Occlusion Map</span>
+        <button class="map-eye-tog active" id="eye-ao" title="Toggle AO in preview" onclick="toggleMapEye('ao',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+      </div>
       <div class="ctrl" style="margin-bottom:0">
         <div class="ctrl-row">
-          <span>AO Strength</span>
+          <span>Strength</span>
           <div style="display:flex;align-items:center;gap:6px">
             <span class="sl-spinner" id="spin-aogen"></span><b id="vaogen">0.0</b>
-            <button class="map-eye-tog active" id="eye-ao" title="Toggle AO in preview" onclick="toggleMapEye('ao',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
           </div>
         </div>
         <input type="range" id="aogen" min="0.0" max="3.0" step="0.1" value="0">
