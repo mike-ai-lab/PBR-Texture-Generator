@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V-Ray Asset Editor Clone</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Include Three.js for live 3D preview -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Include OrbitControls for 3D navigation -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        vray: {
+                            bg: '#1e1e1e', panel: '#252526', header: '#333333', border: '#3e3e42',
+                            textPrimary: '#cccccc', textSecondary: '#858585', accent: '#007acc',
+                            accentHover: '#0098ff', itemSelected: '#37373d', itemHover: '#2a2d2e',
+                            iconReady: '#00a8e8'
+                        }
+                    },
+                    fontSize: { 'xs-vray': '11px', 'sm-vray': '13px' },
+                    fontFamily: { sans: ['Segoe UI', 'San Francisco', 'Helvetica Neue', 'Arial', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e1e1e; }
+        ::-webkit-scrollbar-thumb { background: #424242; }
+        ::-webkit-scrollbar-thumb:hover { background: #4f4f4f; }
+        
+        .checkerboard {
+            background-color: #333;
+            background-image: linear-gradient(45deg, #222 25%, transparent 25%, transparent 75%, #222 75%, #222),
+                              linear-gradient(45deg, #222 25%, transparent 25%, transparent 75%, #222 75%, #222);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none; width: 100%; background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 12px; width: 8px; border-radius: 2px;
+            background: #cccccc; cursor: pointer; margin-top: -5px; box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 2px; cursor: pointer; background: #555;
+        }
+        
+        #right-panel { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .panel-hidden { transform: translateX(100%); }
+        .panel-visible { transform: translateX(0); }
+    </style>
+</head>
+<body class="bg-vray-bg text-vray-textPrimary font-sans h-screen w-screen overflow-hidden flex flex-col select-none text-sm-vray">
+
+    <header class="bg-vray-panel border-b border-vray-border h-8 flex items-center justify-between px-2 flex-shrink-0 z-20 relative">
+        <div class="flex items-center gap-2">
+            <i class="ph-fill ph-infinity text-blue-500 text-lg"></i>
+            <span class="text-xs-vray text-gray-300 tracking-wide">V-Ray Asset Editor</span>
+        </div>
+        <div class="flex items-center text-gray-400">
+            <button class="w-8 h-8 hover:bg-vray-itemHover flex items-center justify-center"><i class="ph ph-minus"></i></button>
+            <button class="w-8 h-8 hover:bg-vray-itemHover flex items-center justify-center"><i class="ph ph-square"></i></button>
+            <button class="w-8 h-8 hover:bg-red-500 hover:text-white flex items-center justify-center"><i class="ph ph-x"></i></button>
+        </div>
+    </header>
+
+    <div class="bg-vray-panel h-10 border-b border-vray-border flex items-center px-1 flex-shrink-0 justify-between z-20 relative shadow-[0_2px_4px_rgba(0,0,0,0.2)]">
+        <div class="flex items-center space-x-1">
+            <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-vray-itemHover text-vray-iconReady"><i class="ph-fill ph-aperture text-xl"></i></button>
+            <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-vray-itemHover text-gray-400"><i class="ph ph-lightbulb text-xl"></i></button>
+            <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-vray-itemHover text-gray-400"><i class="ph ph-cube text-xl"></i></button>
+            <div class="w-px h-5 bg-vray-border mx-1"></div>
+            <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-vray-itemHover text-gray-400"><i class="ph ph-gear text-xl"></i></button>
+            <div class="w-px h-5 bg-vray-border mx-1"></div>
+            <button class="w-8 h-8 flex items-center justify-center rounded hover:bg-vray-itemHover text-gray-400"><i class="ph-fill ph-coffee text-xl"></i></button>
+        </div>
+    </div>
+
+    <div class="flex flex-1 overflow-hidden relative">
+        <div class="w-full md:w-1/3 min-w-[250px] max-w-[400px] border-r border-vray-border flex flex-col bg-vray-panel z-10">
+            <div class="p-2 border-b border-vray-border flex items-center relative">
+                <i class="ph ph-magnifying-glass text-gray-500 absolute left-4"></i>
+                <input type="text" placeholder="Search Scene" class="w-full bg-[#1e1e1e] border border-transparent focus:border-vray-accent focus:outline-none rounded text-xs-vray py-1 pl-7 pr-8 text-gray-300 placeholder-gray-500 h-7">
+            </div>
+
+            <div class="px-3 py-1 flex items-center text-xs-vray font-semibold text-gray-400 uppercase tracking-wider mt-1">
+                <span>Materials</span>
+            </div>
+
+            <div class="flex-1 overflow-y-auto outline-none pb-10">
+                <div class="flex flex-col">
+                    <div class="flex items-center px-1 py-[2px] hover:bg-vray-itemHover cursor-pointer group">
+                        <i class="ph-fill ph-caret-down text-gray-500 text-[10px] w-4 text-center"></i>
+                        <i class="ph ph-folder text-gray-400 text-sm mr-1"></i>
+                        <span class="truncate">Scene Materials</span>
+                    </div>
+                    
+                    <!-- Dynamic List container -->
+                    <div id="dynamic-material-list" class="flex flex-col pl-4">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="absolute bottom-0 w-full bg-vray-panel h-8 border-t border-vray-border flex items-center px-1 justify-between shadow-[0_-2px_4px_rgba(0,0,0,0.1)]">
+                <div class="flex items-center gap-1">
+                    <button id="add-material-btn" class="w-6 h-6 flex items-center justify-center rounded hover:bg-vray-itemHover text-gray-400" title="Add Material"><i class="ph ph-plus-circle"></i></button>
+                    <button class="w-6 h-6 flex items-center justify-center rounded hover:bg-vray-itemHover text-gray-400"><i class="ph ph-trash"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <div id="right-panel" class="absolute md:relative top-0 left-0 md:left-auto right-0 bottom-0 w-full md:flex-1 bg-vray-bg flex flex-col z-10 border-l border-vray-border panel-hidden shadow-[-4px_0_15px_rgba(0,0,0,0.3)]">
+            
+            <div class="md:hidden flex items-center justify-between px-2 h-8 bg-vray-panel border-b border-vray-border flex-shrink-0">
+                <span class="text-xs-vray text-gray-300 font-semibold" id="mobile-panel-title">Material Settings</span>
+                <button id="close-panel-btn" class="text-gray-400 hover:text-white"><i class="ph ph-x"></i></button>
+            </div>
+
+            <!-- Interactive 3D Preview Canvas -->
+            <div class="h-[250px] md:h-1/2 min-h-[200px] border-b border-vray-border relative checkerboard" id="preview-canvas-container">
+                <!-- ThreeJS Canvas will be injected here -->
+                <div class="absolute top-2 left-2 bg-black/50 px-2 py-1 rounded text-xs-vray text-gray-300 pointer-events-none z-10">
+                    <i class="ph ph-arrows-out-cardinal"></i> Drag to Orbit
+                </div>
+            </div>
+
+            <div class="bg-vray-panel border-b border-vray-border px-3 py-1 flex items-center justify-between shadow-sm z-10 flex-shrink-0">
+                <span class="text-sm-vray font-semibold text-gray-300" id="panel-material-name">Generic</span>
+            </div>
+
+            <div class="flex-1 overflow-y-auto bg-[#252526] p-1 pb-12">
+                
+                <!-- Diffuse / Base Layer -->
+                <div class="border-b border-vray-border mb-1 accordion">
+                    <div class="flex items-center gap-2 p-2 cursor-pointer hover:bg-vray-itemHover accordion-header" onclick="toggleAccordion(this)">
+                        <i class="ph-fill ph-caret-down text-vray-accent text-[10px] transition-transform duration-200"></i>
+                        <span class="text-vray-accent font-medium">Diffuse & Basic</span>
+                    </div>
+                    <div class="accordion-content pl-4 pr-2 pb-2">
+                        <div class="flex items-center justify-between min-h-[30px] my-1">
+                            <span class="text-gray-400 w-1/3">Color</span>
+                            <div class="flex items-center gap-2 flex-1 justify-end">
+                                <div class="w-14 h-5 rounded-[2px] border border-gray-600 shadow-sm relative overflow-hidden">
+                                    <input type="color" id="prop-color" class="absolute -top-2 -left-2 w-20 h-20 cursor-pointer">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between min-h-[30px] my-1">
+                            <span class="text-gray-400 w-1/3">Roughness</span>
+                            <div class="flex items-center gap-2 flex-1 justify-end">
+                                <div class="flex-1 mx-2"><input type="range" id="prop-roughness" min="0" max="1" step="0.01" value="0.5"></div>
+                                <span id="val-roughness" class="text-gray-400 w-8 text-right text-[10px]">0.50</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between min-h-[30px] my-1">
+                            <span class="text-gray-400 w-1/3">Metalness</span>
+                            <div class="flex items-center gap-2 flex-1 justify-end">
+                                <div class="flex-1 mx-2"><input type="range" id="prop-metalness" min="0" max="1" step="0.01" value="0"></div>
+                                <span id="val-metalness" class="text-gray-400 w-8 text-right text-[10px]">0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Refraction / Glass Layer -->
+                <div class="border-b border-vray-border mb-1 accordion">
+                    <div class="flex items-center gap-2 p-2 cursor-pointer hover:bg-vray-itemHover accordion-header" onclick="toggleAccordion(this)">
+                        <i class="ph-fill ph-caret-down text-gray-300 text-[10px] transition-transform duration-200 -rotate-90"></i>
+                        <span class="text-gray-300 font-medium">Refraction</span>
+                    </div>
+                    <div class="accordion-content pl-4 pr-2 pb-2" style="display: none;">
+                        <div class="flex items-center justify-between min-h-[30px] my-1">
+                            <span class="text-gray-400 w-1/3" title="Transmission (Glass)">Transmission</span>
+                            <div class="flex items-center gap-2 flex-1 justify-end">
+                                <div class="flex-1 mx-2"><input type="range" id="prop-transmission" min="0" max="1" step="0.01" value="0"></div>
+                                <span id="val-transmission" class="text-gray-400 w-8 text-right text-[10px]">0.00</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between min-h-[30px] my-1">
+                            <span class="text-gray-400 w-1/3" title="Index of Refraction">IOR</span>
+                            <div class="flex items-center gap-2 flex-1 justify-end">
+                                <div class="flex-1 mx-2"><input type="range" id="prop-ior" min="1" max="3" step="0.01" value="1.5"></div>
+                                <span id="val-ior" class="text-gray-400 w-8 text-right text-[10px]">1.50</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between min-h-[30px] my-1">
+                            <span class="text-gray-400 w-1/3">Opacity</span>
+                            <div class="flex items-center gap-2 flex-1 justify-end">
+                                <div class="flex-1 mx-2"><input type="range" id="prop-opacity" min="0" max="1" step="0.01" value="1"></div>
+                                <span id="val-opacity" class="text-gray-400 w-8 text-right text-[10px]">1.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Emissive Layer -->
+                <div class="border-b border-vray-border mb-1 accordion">
+                    <div class="flex items-center gap-2 p-2 cursor-pointer hover:bg-vray-itemHover accordion-header" onclick="toggleAccordion(this)">
+                        <i class="ph-fill ph-caret-down text-gray-300 text-[10px] transition-transform duration-200 -rotate-90"></i>
+                        <span class="text-gray-300 font-medium">Emissive</span>
+                    </div>
+                    <div class="accordion-content pl-4 pr-2 pb-2" style="display: none;">
+                        <div class="flex items-center justify-between min-h-[30px] my-1">
+                            <span class="text-gray-400 w-1/3">Emissive Color</span>
+                            <div class="flex items-center gap-2 flex-1 justify-end">
+                                <div class="w-14 h-5 rounded-[2px] border border-gray-600 shadow-sm relative overflow-hidden">
+                                    <input type="color" id="prop-emissive" value="#000000" class="absolute -top-2 -left-2 w-20 h-20 cursor-pointer">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between min-h-[30px] my-1">
+                            <span class="text-gray-400 w-1/3">Intensity</span>
+                            <div class="flex items-center gap-2 flex-1 justify-end">
+                                <div class="flex-1 mx-2"><input type="range" id="prop-emissive-intensity" min="0" max="10" step="0.1" value="0"></div>
+                                <span id="val-emissive-intensity" class="text-gray-400 w-8 text-right text-[10px]">0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+             <div class="absolute right-0 bottom-0 bg-[#333] h-8 flex items-center px-2 z-20 border-t border-l border-vray-border w-full justify-between md:hidden hidden" id="bottom-close-bar">
+                 <button class="text-gray-400 hover:text-white" id="close-panel-btn-bottom"><i class="ph-bold ph-arrow-right"></i> Close Editor</button>
+             </div>
+        </div>
+        
+        <div class="w-8 bg-[#333] border-l border-vray-border hidden md:flex flex-col items-center py-2 relative flex-shrink-0 z-0">
+             <button id="toggle-editor-btn" class="absolute left-0 top-1/2 transform -translate-y-1/2 w-3 h-8 bg-[#333] border border-vray-border border-r-0 rounded-l flex items-center justify-center hover:bg-[#444] z-10 text-gray-400 -ml-3 transition-transform duration-300">
+                <i class="ph-bold ph-caret-left text-[8px]" id="toggle-icon"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA STATE ---
+        let materialsData = [
+            { id: 'm1', name: 'Aluminium Brushed', color: '#aaaaaa', roughness: 0.35, metalness: 0.9, opacity: 1, transmission: 0, ior: 1.5, emissive: '#000000', emissiveIntensity: 0 },
+            { id: 'm2', name: 'Plastic Matte Blue', color: '#0055ff', roughness: 0.7, metalness: 0.0, opacity: 1, transmission: 0, ior: 1.5, emissive: '#000000', emissiveIntensity: 0 },
+            { id: 'm3', name: 'Glass Clear', color: '#ffffff', roughness: 0.0, metalness: 0.0, opacity: 1, transmission: 1.0, ior: 1.5, emissive: '#000000', emissiveIntensity: 0 },
+            { id: 'm4', name: 'Gold Pure', color: '#ffd700', roughness: 0.15, metalness: 1.0, opacity: 1, transmission: 0, ior: 1.5, emissive: '#000000', emissiveIntensity: 0 },
+            { id: 'm5', name: 'Frosted Glass (Foggy)', color: '#ffffff', roughness: 0.4, metalness: 0.0, opacity: 1, transmission: 0.95, ior: 1.45, emissive: '#000000', emissiveIntensity: 0 },
+            { id: 'm6', name: 'Neon Emissive Blue', color: '#ffffff', roughness: 0.2, metalness: 0.0, opacity: 1, transmission: 0, ior: 1.5, emissive: '#00a8e8', emissiveIntensity: 5.0 }
+        ];
+
+        let activeMaterialId = null;
+        let isPanelOpen = false;
+        let nextId = 10;
+
+        // --- THREE.JS ENGINE SETUP ---
+        let scene, camera, renderer, previewMesh, previewMaterial, controls, innerMesh;
+
+        function init3D() {
+            const container = document.getElementById('preview-canvas-container');
+            if(!container) return;
+            
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.z = 4.5;
+
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            container.appendChild(renderer.domElement);
+
+            // OrbitControls for interaction
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enableZoom = true;
+
+            // Generate a 360 checkerboard skybox so glass refraction is visible
+            const bgCanvas = document.createElement('canvas');
+            bgCanvas.width = 1024; bgCanvas.height = 1024;
+            const ctx = bgCanvas.getContext('2d');
+            ctx.fillStyle = '#111'; ctx.fillRect(0,0,1024,1024);
+            ctx.fillStyle = '#333'; 
+            for(let i=0; i<1024; i+=128) {
+                for(let j=0; j<1024; j+=128) {
+                    if((i/128 + j/128) % 2 === 0) ctx.fillRect(i, j, 128, 128);
+                }
+            }
+            const bgTex = new THREE.CanvasTexture(bgCanvas);
+            bgTex.wrapS = THREE.RepeatWrapping; bgTex.wrapT = THREE.RepeatWrapping;
+            bgTex.repeat.set(8, 4);
+            
+            const bgMat = new THREE.MeshBasicMaterial({ map: bgTex, side: THREE.BackSide });
+            const bgMesh = new THREE.Mesh(new THREE.SphereGeometry(20, 32, 32), bgMat);
+            scene.add(bgMesh);
+
+            // Inner Torus Knot to observe through frosted glass
+            const innerGeo = new THREE.TorusKnotGeometry(0.4, 0.1, 100, 16);
+            const innerMat = new THREE.MeshStandardMaterial({ color: 0x007acc, roughness: 0.1, metalness: 0.9 });
+            innerMesh = new THREE.Mesh(innerGeo, innerMat);
+            scene.add(innerMesh);
+
+            // Studio Lighting
+            scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+            const dirMain = new THREE.DirectionalLight(0xffffff, 2); dirMain.position.set(5, 5, 5); scene.add(dirMain);
+            const dirFill = new THREE.DirectionalLight(0xaaccff, 1); dirFill.position.set(-5, 0, 2); scene.add(dirFill);
+            const backLight = new THREE.DirectionalLight(0xffffff, 1.5); backLight.position.set(0, 5, -5); scene.add(backLight);
+
+            // MeshPhysicalMaterial handles Glass and Emissive
+            previewMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0xcccccc, roughness: 0.5, metalness: 0.0,
+                transparent: true, opacity: 1, transmission: 0, ior: 1.5,
+                thickness: 1.0, emissive: 0x000000, emissiveIntensity: 0,
+                side: THREE.DoubleSide
+            });
+
+            previewMesh = new THREE.Mesh(new THREE.SphereGeometry(1.2, 64, 64), previewMaterial);
+            scene.add(previewMesh);
+
+            window.addEventListener('resize', () => {
+                if(container.clientWidth > 0) {
+                    camera.aspect = container.clientWidth / container.clientHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(container.clientWidth, container.clientHeight);
+                }
+            });
+
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update(); 
+                if(innerMesh) {
+                    innerMesh.rotation.x += 0.005;
+                    innerMesh.rotation.y += 0.005;
+                }
+                renderer.render(scene, camera);
+            }
+            animate();
+        }
+
+        // --- STREAMING_CHUNK:Implementing Application Logic... ---
+        
+        function sync3DMaterial() {
+            if(!activeMaterialId || !previewMaterial) return;
+            const matData = materialsData.find(m => m.id === activeMaterialId);
+            if(!matData) return;
+
+            previewMaterial.color.set(matData.color);
+            previewMaterial.roughness = matData.roughness;
+            previewMaterial.metalness = matData.metalness;
+            
+            previewMaterial.transmission = matData.transmission || 0;
+            previewMaterial.ior = matData.ior || 1.5;
+            previewMaterial.emissive.set(matData.emissive || '#000000');
+            previewMaterial.emissiveIntensity = matData.emissiveIntensity || 0;
+
+            previewMaterial.opacity = matData.opacity;
+            previewMaterial.transparent = matData.opacity < 1.0 || (matData.transmission || 0) > 0;
+            
+            previewMaterial.needsUpdate = true;
+        }
+
+        function renderMaterialList() {
+            const listEl = document.getElementById('dynamic-material-list');
+            listEl.innerHTML = '';
+            
+            materialsData.forEach(mat => {
+                const item = document.createElement('div');
+                const isSelected = mat.id === activeMaterialId;
+                
+                item.className = `material-item flex items-center px-1 py-[3px] hover:bg-vray-itemHover cursor-pointer group relative ${isSelected ? 'bg-vray-itemSelected border-r-2 border-vray-accent' : ''}`;
+                item.onclick = () => selectMaterial(mat.id);
+                
+                const iconStyle = isSelected ? 'bg-blue-500 border-blue-400 shadow-[0_0_4px_rgba(59,130,246,0.5)]' : 'bg-gray-500 border-gray-600';
+                
+                item.innerHTML = `
+                    <div class="w-4 flex justify-center"><i class="ph-fill ph-caret-right text-gray-500 text-[10px] opacity-0 group-hover:opacity-100 absolute -left-1 ${isSelected ? 'hidden' : ''}"></i></div>
+                    <div class="w-4 flex justify-center material-icon-container"><div class="w-[10px] h-[10px] rounded-full border ${iconStyle} material-icon"></div></div>
+                    <span class="truncate ml-1 ${isSelected ? 'text-white' : 'text-gray-400'}">${mat.name}</span>
+                `;
+                listEl.appendChild(item);
+            });
+        }
+
+        function selectMaterial(id) {
+            activeMaterialId = id;
+            renderMaterialList();
+            
+            const mat = materialsData.find(m => m.id === activeMaterialId);
+            if(!mat) return;
+
+            document.getElementById('panel-material-name').textContent = mat.name;
+            if(document.getElementById('mobile-panel-title')) {
+                document.getElementById('mobile-panel-title').textContent = mat.name;
+            }
+
+            // Sync Inputs
+            document.getElementById('prop-color').value = mat.color;
+            document.getElementById('prop-roughness').value = mat.roughness;
+            document.getElementById('val-roughness').textContent = mat.roughness.toFixed(2);
+            document.getElementById('prop-metalness').value = mat.metalness;
+            document.getElementById('val-metalness').textContent = mat.metalness.toFixed(2);
+            document.getElementById('prop-opacity').value = mat.opacity;
+            document.getElementById('val-opacity').textContent = mat.opacity.toFixed(2);
+            
+            document.getElementById('prop-transmission').value = mat.transmission || 0;
+            document.getElementById('val-transmission').textContent = (mat.transmission || 0).toFixed(2);
+            document.getElementById('prop-ior').value = mat.ior || 1.5;
+            document.getElementById('val-ior').textContent = (mat.ior || 1.5).toFixed(2);
+            
+            document.getElementById('prop-emissive').value = mat.emissive || '#000000';
+            document.getElementById('prop-emissive-intensity').value = mat.emissiveIntensity || 0;
+            document.getElementById('val-emissive-intensity').textContent = (mat.emissiveIntensity || 0).toFixed(2);
+
+            sync3DMaterial();
+            openPanel();
+        }
+
+        function updateMaterialProperty(prop, value) {
+            if(!activeMaterialId) return;
+            const mat = materialsData.find(m => m.id === activeMaterialId);
+            if(mat) {
+                mat[prop] = value;
+                sync3DMaterial();
+            }
+        }
+
+        function toggleAccordion(element) {
+            const content = element.nextElementSibling;
+            const icon = element.querySelector('i');
+            if (content.style.display === "none") {
+                content.style.display = "block";
+                icon.classList.remove('-rotate-90');
+                icon.classList.add('text-vray-accent');
+                icon.classList.remove('text-gray-300');
+                element.querySelector('span').classList.add('text-vray-accent');
+                element.querySelector('span').classList.remove('text-gray-300');
+            } else {
+                content.style.display = "none";
+                icon.classList.add('-rotate-90');
+                icon.classList.remove('text-vray-accent');
+                icon.classList.add('text-gray-300');
+                element.querySelector('span').classList.remove('text-vray-accent');
+                element.querySelector('span').classList.add('text-gray-300');
+            }
+        }
+
+        // Panel Handling
+        const rightPanel = document.getElementById('right-panel');
+        const toggleIcon = document.getElementById('toggle-icon');
+        
+        function openPanel() {
+            rightPanel.classList.remove('panel-hidden');
+            rightPanel.classList.add('panel-visible');
+            isPanelOpen = true;
+            if (toggleIcon) { toggleIcon.classList.remove('ph-caret-left'); toggleIcon.classList.add('ph-caret-right'); }
+            
+            // Resize renderer due to layout shift
+            setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 300);
+        }
+
+        function closePanel() {
+            rightPanel.classList.remove('panel-visible');
+            rightPanel.classList.add('panel-hidden');
+            isPanelOpen = false;
+            if (toggleIcon) { toggleIcon.classList.remove('ph-caret-right'); toggleIcon.classList.add('ph-caret-left'); }
+        }
+
+        // Setup Event Listeners on Load
+        window.addEventListener('DOMContentLoaded', () => {
+            init3D();
+            
+            // Initialize List & Selection
+            renderMaterialList();
+            if(materialsData.length > 0) {
+                selectMaterial(materialsData[2].id); // Select Glass Clear by default to show off refraction
+            }
+
+            // Input Listeners
+            ['roughness', 'metalness', 'opacity', 'transmission', 'ior', 'emissive-intensity'].forEach(prop => {
+                const el = document.getElementById(`prop-${prop}`);
+                if(el) {
+                    el.addEventListener('input', (e) => {
+                        const val = parseFloat(e.target.value);
+                        document.getElementById(`val-${prop}`).textContent = val.toFixed(2);
+                        updateMaterialProperty(prop === 'emissive-intensity' ? 'emissiveIntensity' : prop, val);
+                    });
+                }
+            });
+
+            document.getElementById('prop-color').addEventListener('input', (e) => updateMaterialProperty('color', e.target.value));
+            document.getElementById('prop-emissive').addEventListener('input', (e) => updateMaterialProperty('emissive', e.target.value));
+
+            // Add Material
+            document.getElementById('add-material-btn').addEventListener('click', () => {
+                const newMat = {
+                    id: 'm' + nextId++, name: `New Material ${nextId-10}`,
+                    color: '#dddddd', roughness: 0.5, metalness: 0.0, opacity: 1, 
+                    transmission: 0, ior: 1.5, emissive: '#000000', emissiveIntensity: 0
+                };
+                materialsData.push(newMat);
+                renderMaterialList();
+                selectMaterial(newMat.id);
+            });
+
+            // Panel Toggles
+            document.getElementById('toggle-editor-btn').addEventListener('click', () => isPanelOpen ? closePanel() : openPanel());
+            document.getElementById('close-panel-btn').addEventListener('click', closePanel);
+            if(document.getElementById('close-panel-btn-bottom')) {
+                document.getElementById('close-panel-btn-bottom').addEventListener('click', closePanel);
+            }
+        });
+    </script>
+</body>
+</html>

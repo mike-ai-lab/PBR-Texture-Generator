@@ -6,48 +6,48 @@
 <title>PBR Texture Generator</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{display:flex;height:100vh;height:100dvh;overflow:hidden;background:#0e0e14;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
-#panel{width:300px;min-width:300px;height:100vh;height:100dvh;background:#1a1b22;border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;overflow-y:auto}
-#panel-header{padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,.06)}
+body{display:flex;height:100vh;height:100dvh;overflow:hidden;background:#0e0e14;color:#cbd5e1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
+#panel{width:300px;min-width:300px;height:100vh;height:100dvh;background:#1a1b22;border-right:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;overflow-y:auto}
+#panel-header{padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,.08)}
 #panel-header h1{font-size:14px;font-weight:700;color:#fff;letter-spacing:-.2px}
-#panel-header p{font-size:10px;color:#702af8;margin-top:2px;font-weight:500}
-.section{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.04)}
-.sec-title{font-size:9px;font-weight:700;letter-spacing:1.4px;color:#702af8;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+#panel-header p{font-size:10px;color:#a78bfa;margin-top:2px;font-weight:500}
+.section{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06)}
+.sec-title{font-size:9px;font-weight:700;letter-spacing:1.4px;color:#a78bfa;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:6px}
 .sec-title::before{content:'';width:3px;height:10px;background:#702af8;border-radius:2px;display:inline-block}
-#drop-zone{border:1.5px dashed #2d2f3d;border-radius:10px;padding:20px 12px;text-align:center;cursor:pointer;transition:.2s;background:#111218}
+#drop-zone{border:1.5px dashed #3d4060;border-radius:10px;padding:20px 12px;text-align:center;cursor:pointer;transition:.2s;background:#111218}
 #drop-zone:hover,#drop-zone.drag{border-color:#702af8;background:#16121f}
 #drop-zone img{max-width:100%;max-height:130px;border-radius:6px;display:none;margin:0 auto}
-#drop-zone .hint{font-size:11px;color:#4a4f6a;line-height:1.7}
+#drop-zone .hint{font-size:11px;color:#94a3b8;line-height:1.7}
 #drop-zone .hint span{display:block;font-size:20px;margin-bottom:4px}
-#file-name{font-size:10px;color:#6b7280;margin-top:6px;word-break:break-all;text-align:center}
+#file-name{font-size:10px;color:#cbd5e1;margin-top:6px;word-break:break-all;text-align:center}
 #file-input{display:none}
 .ctrl{margin-bottom:10px}
-.ctrl-row{display:flex;justify-content:space-between;font-size:11px;color:#8892a4;margin-bottom:4px}
-.ctrl-row b{color:#a78bfa;font-weight:600}
-input[type=range]{width:100%;height:5px;border-radius:3px;background:#1e2030;cursor:pointer;-webkit-appearance:none;appearance:none;outline:none}
+.ctrl-row{display:flex;justify-content:space-between;font-size:11px;color:#cbd5e1;margin-bottom:4px}
+.ctrl-row b{color:#c4b5fd;font-weight:600}
+input[type=range]{width:100%;height:5px;border-radius:3px;background:#2a2d42;cursor:pointer;-webkit-appearance:none;appearance:none;outline:none}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#702af8;cursor:pointer;box-shadow:0 0 8px rgba(112,42,248,.5)}
 input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#702af8;cursor:pointer;border:none;box-shadow:0 0 8px rgba(112,42,248,.5)}
 #btn-generate{width:100%;padding:11px;background:#702af8;color:#fff;border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:6px;transition:.15s;letter-spacing:.2px}
 #btn-generate:hover{background:#5d1ee0}
-#btn-generate:disabled{background:#1e1f2a;color:#3a3f5a;cursor:not-allowed}
-#status{font-size:10px;color:#4a4f6a;text-align:center;min-height:16px;padding:2px 0 4px}
+#btn-generate:disabled{background:#1e1f2a;color:#5a6080;cursor:not-allowed}
+#status{font-size:10px;color:#94a3b8;text-align:center;min-height:16px;padding:2px 0 4px}
 #status.ok{color:#34d399}
 #status.err{color:#f87171}
-.map-pill{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#6b7280;padding:5px 10px;background:#111218;border-radius:6px;margin-bottom:5px;transition:.3s;border:1px solid transparent}
+.map-pill{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#94a3b8;padding:5px 10px;background:#111218;border-radius:6px;margin-bottom:5px;transition:.3s;border:1px solid transparent}
 .map-pill .pill-icon{font-size:13px;transition:.3s;min-width:18px;text-align:right}
 .map-pill.working{background:#16121f;color:#c4b5fd;border-color:#702af8}
 .map-pill.done{background:#0d1f17;color:#6ee7b7;border-color:#059669}
 /* Map row cards */
-.map-row{display:flex;align-items:center;gap:6px;padding:7px 10px;background:#111218;border-radius:8px;border:1px solid #2d2f3d;transition:.3s;margin-bottom:6px}
+.map-row{display:flex;align-items:center;gap:6px;padding:7px 10px;background:#111218;border-radius:8px;border:1px solid #2d3350;transition:.3s;margin-bottom:6px}
 .map-row:last-child{margin-bottom:0}
 .map-row.done{border-color:#059669;background:#0d1f17}
 .map-row.working{border-color:#702af8;background:#16121f}
 .map-row-icon{font-size:13px;min-width:18px;text-align:center;transition:.3s}
-.map-row-name{flex:1;font-size:11px;font-weight:600;color:#8892a4}
+.map-row-name{flex:1;font-size:11px;font-weight:600;color:#cbd5e1}
 .map-row.done .map-row-name{color:#6ee7b7}
-.map-row-btn{width:22px;height:22px;border:none;background:transparent;cursor:pointer;color:#4a4f6a;display:flex;align-items:center;justify-content:center;border-radius:5px;transition:.15s;flex-shrink:0;padding:0}
+.map-row-btn{width:22px;height:22px;border:none;background:transparent;cursor:pointer;color:#94a3b8;display:flex;align-items:center;justify-content:center;border-radius:5px;transition:.15s;flex-shrink:0;padding:0}
 .map-row-btn:hover:not(:disabled){color:#e2e8f0;background:rgba(255,255,255,.07)}
-.map-row-btn:disabled{opacity:.25;cursor:not-allowed}
+.map-row-btn:disabled{opacity:.3;cursor:not-allowed}
 .map-row-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.6}
 /* Map preview modal */
 #map-preview-modal{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.88);backdrop-filter:blur(6px);align-items:center;justify-content:center}
@@ -55,20 +55,20 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 #map-preview-box{background:#1a1b22;border:1px solid #2d2f3d;border-radius:14px;width:min(680px,95vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
 #map-preview-header{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2d2f3d;flex-shrink:0}
 #map-preview-title{font-size:12px;font-weight:700;color:#fff}
-#map-preview-close{background:transparent;border:none;color:#4a4f6a;cursor:pointer;font-size:16px;line-height:1}
+#map-preview-close{background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:16px;line-height:1}
 #map-preview-close:hover{color:#fff}
 #map-preview-viewport{flex:1;position:relative;overflow:hidden;background:#0a0a10;cursor:grab;min-height:300px}
 #map-preview-viewport.grabbing{cursor:grabbing}
 #map-preview-img{position:absolute;transform-origin:0 0;user-select:none;pointer-events:none}
-#map-preview-zoom-hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:9px;color:#3a3f5a;white-space:nowrap;pointer-events:none}
+#map-preview-zoom-hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:9px;color:#94a3b8;white-space:nowrap;pointer-events:none}
 #map-preview-toolbar{position:absolute;top:8px;right:8px;display:flex;gap:4px}
 .mp-tb-btn{width:28px;height:28px;background:rgba(14,14,20,.9);border:1px solid rgba(255,255,255,.1);border-radius:7px;color:#e2e8f0;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
 .mp-tb-btn:hover{background:rgba(112,42,248,.2);border-color:#702af8}
 #map-preview-info{padding:12px 16px;border-top:1px solid #2d2f3d;flex-shrink:0;background:#111218}
 .mp-info-label{font-size:13px;font-weight:700;margin-bottom:4px}
-.mp-info-desc{font-size:10px;color:#64748b;margin-bottom:8px}
+.mp-info-desc{font-size:10px;color:#94a3b8;margin-bottom:8px}
 .mp-info-chips{display:flex;flex-wrap:wrap;gap:5px}
-.mp-info-chip{font-size:10px;color:#94a3b8;background:#1a1b22;border:1px solid #2d2f3d;border-radius:6px;padding:3px 10px}
+.mp-info-chip{font-size:10px;color:#cbd5e1;background:#1a1b22;border:1px solid #2d3350;border-radius:6px;padding:3px 10px}
 .mp-info-chip b{color:#a78bfa;font-weight:600}
 #map-preview-footer{padding:8px 16px;border-top:1px solid #2d2f3d;display:flex;justify-content:flex-end;flex-shrink:0}
 #map-preview-dl{padding:7px 16px;background:#702af8;color:#fff;border:none;border-radius:7px;font-size:10px;font-weight:700;cursor:pointer;transition:.15s}
@@ -76,13 +76,13 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 #progress-wrap{margin-top:5px;display:none}
 #progress-bar-outer{height:3px;background:#1a1b22;border-radius:2px;overflow:hidden}
 #progress-bar{height:3px;width:0%;background:#702af8;border-radius:2px;transition:width .3s}
-#progress-label{font-size:9px;color:#4a4f6a;margin-top:3px;min-height:13px}
-select{width:100%;padding:6px 10px;font-size:11px;background:#111218;border:1px solid #2d2f3d;color:#e2e8f0;border-radius:7px;outline:none;cursor:pointer}
+#progress-label{font-size:9px;color:#94a3b8;margin-top:3px;min-height:13px}
+select{width:100%;padding:6px 10px;font-size:11px;background:#111218;border:1px solid #2d3350;color:#cbd5e1;border-radius:7px;outline:none;cursor:pointer}
 select:focus{border-color:#702af8}
 #canvas-wrap{flex:1;position:relative;overflow:hidden}
 #view-3d{position:absolute;inset:0}
 #view-3d.hidden{display:none}
-#canvas-hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-size:10px;color:#3a3f5a;text-align:center;pointer-events:none;white-space:nowrap}
+#canvas-hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-size:10px;color:#94a3b8;text-align:center;pointer-events:none;white-space:nowrap}
 #toolbar{position:absolute;top:12px;right:12px;display:flex;align-items:center;gap:6px;z-index:5}
 .tb-btn{width:34px;height:34px;border-radius:9px;border:1px solid rgba(255,255,255,.1);background:rgba(14,14,20,0.94);backdrop-filter:blur(10px);color:#e2e8f0;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;position:relative;user-select:none}
 .tb-btn:hover{background:rgba(112,42,248,.2);border-color:#702af8}
@@ -97,16 +97,16 @@ select:focus{border-color:#702af8}
 .ctx-item .ctx-icon svg{width:14px;height:14px;stroke:currentColor}
 .ctx-divider{height:1px;background:#2d2f3d;margin:3px 8px}
 .tb-group{display:flex;background:rgba(14,14,20,0.94);border-radius:8px;border:1px solid rgba(255,255,255,.08);overflow:hidden;backdrop-filter:blur(10px)}
-.tb-group button{padding:5px 12px;font-size:10px;font-weight:600;border:none;background:transparent;color:#4a4f6a;cursor:pointer;transition:.15s;white-space:nowrap}
+.tb-group button{padding:5px 12px;font-size:10px;font-weight:600;border:none;background:transparent;color:#94a3b8;cursor:pointer;transition:.15s;white-space:nowrap}
 .tb-group button.active{background:#702af8;color:#fff}
 .tb-group button:hover:not(.active){color:#e2e8f0;background:rgba(255,255,255,.05)}
 #view-2d{display:none;width:100%;height:100%;overflow:auto;padding:16px;gap:12px;grid-template-columns:repeat(2,1fr);align-content:start;background:#0e0e14}
 #view-2d.visible{display:grid}
 .map-card{background:#1a1b22;border-radius:10px;overflow:hidden;border:1px solid #2d2f3d}
-.map-card-title{padding:7px 10px;font-size:10px;font-weight:600;color:#6b7280;border-bottom:1px solid #2d2f3d;display:flex;justify-content:space-between;align-items:center}
+.map-card-title{padding:7px 10px;font-size:10px;font-weight:600;color:#cbd5e1;border-bottom:1px solid #2d2f3d;display:flex;justify-content:space-between;align-items:center}
 .map-card img{width:100%;aspect-ratio:1/1;display:block;object-fit:cover}
 .map-card .placeholder{aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:24px;color:#2d2f3d}
-.btn-dl{padding:2px 8px;font-size:9px;font-weight:600;background:transparent;border:1px solid #2d2f3d;color:#4a4f6a;border-radius:4px;cursor:pointer;transition:.15s;text-decoration:none}
+.btn-dl{padding:2px 8px;font-size:9px;font-weight:600;background:transparent;border:1px solid #2d2f3d;color:#cbd5e1;border-radius:4px;cursor:pointer;transition:.15s;text-decoration:none}
 .btn-dl:hover{border-color:#702af8;color:#a78bfa}
 #tile-test-canvas{width:100%;aspect-ratio:2/1;background-repeat:repeat;background-size:33.33%;border-radius:0 0 10px 10px}
 #loading{position:absolute;inset:0;background:#0e0e14;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9;transition:opacity .4s}
@@ -120,7 +120,7 @@ select:focus{border-color:#702af8}
 #seamless-modal.open{display:flex}
 #seamless-modal-box{background:#1a1b22;border:1px solid #2d2f3d;border-radius:16px;width:600px;height:auto;max-width:95vw;max-height:90vh;max-height:90dvh;padding:20px;display:flex;flex-direction:column;gap:12px}
 #seamless-modal-box h2{font-size:12px;font-weight:700;color:#fff}
-#seamless-modal-box p{font-size:10px;color:#4a4f6a}
+#seamless-modal-box p{font-size:10px;color:#94a3b8}
 #sm-canvas-wrap{position:relative;flex:1;min-height:0;border-radius:10px;overflow:hidden;background:#0e0e14}
 #sm-canvas{width:100%;height:100%;display:block}
 #sm-ov-h{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);background:rgba(112,42,248,.18);border-top:1px dashed rgba(112,42,248,.8);border-bottom:1px dashed rgba(112,42,248,.8);pointer-events:none;transition:height .15s}
@@ -129,12 +129,23 @@ select:focus{border-color:#702af8}
 #sm-label-h{top:50%;left:6px;transform:translateY(-50%)}
 #sm-label-v{left:50%;top:6px;transform:translateX(-50%)}
 #sm-footer{display:flex;gap:8px;align-items:center}
-.map-toggle{padding:3px 9px;font-size:9px;font-weight:600;border-radius:5px;border:1px solid #2d2f3d;background:transparent;color:#3a3f5a;cursor:pointer;transition:.15s}
+.map-toggle{padding:3px 9px;font-size:9px;font-weight:600;border-radius:5px;border:1px solid #2d2f3d;background:transparent;color:#94a3b8;cursor:pointer;transition:.15s}
 .map-toggle.active{border-color:#702af8;color:#a78bfa;background:rgba(112,42,248,.1)}
-.map-toggle:hover:not(.active){border-color:#4a4f6a;color:#8892a4}
-.map-eye-tog{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;border:1px solid #2d2f3d;background:transparent;cursor:pointer;color:#3a3f5a;transition:.15s;padding:0;flex-shrink:0}
+.map-toggle:hover:not(.active){border-color:#6b7280;color:#cbd5e1}
+.map-eye-tog{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;border:1px solid #2d2f3d;background:transparent;cursor:pointer;color:#94a3b8;transition:.15s;padding:0;flex-shrink:0}
 .map-eye-tog.active{border-color:#702af8;color:#a78bfa;background:rgba(112,42,248,.1)}
-.map-eye-tog:hover{border-color:#4a4f6a;color:#8892a4}
+.map-eye-tog:hover{border-color:#a78bfa;color:#a78bfa}
+/* Map upload override */
+.map-upload-btn{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;border:1px solid #2d2f3d;background:transparent;cursor:pointer;color:#94a3b8;transition:.15s;padding:0;flex-shrink:0}
+.map-upload-btn:hover{border-color:#f59e0b;color:#f59e0b}
+.map-clear-btn{display:none;align-items:center;justify-content:center;width:16px;height:16px;border-radius:3px;border:1px solid #7f1d1d;background:transparent;cursor:pointer;color:#f87171;transition:.15s;padding:0;flex-shrink:0;font-size:9px;font-weight:700}
+.map-clear-btn.visible{display:flex}
+.map-clear-btn:hover{background:#7f1d1d;color:#fff}
+.card.overridden{border-color:#78350f}
+.adv-summary{font-size:9px;color:#64748b;cursor:pointer;list-style:none;display:flex;align-items:center;gap:4px;padding:2px 0;user-select:none}
+.adv-summary::-webkit-details-marker{display:none}
+.adv-summary::before{content:'▶';font-size:7px;transition:transform .15s}
+details[open] .adv-summary::before{transform:rotate(90deg)}
 @keyframes spin-ring{to{transform:rotate(360deg)}}
 .sl-spinner{display:none;width:10px;height:10px;border:1.5px solid rgba(167,139,250,.2);border-top-color:#a78bfa;border-radius:50%;animation:spin-ring .6s linear infinite;flex-shrink:0}
 #btn-sm-preview{width:100%;padding:7px;margin-bottom:6px;background:transparent;border:1px solid #702af8;color:#a78bfa;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s}
@@ -142,7 +153,7 @@ select:focus{border-color:#702af8}
 /* Card containers for grouped controls */
 .card{background:#111218;border:1px solid #2d2f3d;border-radius:12px;padding:12px 14px;margin-bottom:10px}
 .card:last-child{margin-bottom:0}
-.card-label{font-size:9px;font-weight:700;letter-spacing:1.2px;color:#475569;text-transform:uppercase;margin-bottom:10px}
+.card-label{font-size:9px;font-weight:700;letter-spacing:1.2px;color:#94a3b8;text-transform:uppercase;margin-bottom:10px}
 .sub-divider{height:1px;background:rgba(255,255,255,.04);margin:10px 0}
 /* toggle row */
 .toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
@@ -154,20 +165,24 @@ select:focus{border-color:#702af8}
 .pill-switch input:checked+.pill-switch-track{background:#702af8}
 .pill-switch-track::after{content:'';position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;top:3px;left:3px;transition:.2s}
 .pill-switch input:checked+.pill-switch-track::after{transform:translateX(16px)}
-.pipe-tools{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
-.pipe-tool-btn{flex:1;min-width:60px;padding:6px 4px;font-size:9px;font-weight:700;background:#111218;border:1px solid #2d2f3d;color:#6b7280;border-radius:6px;cursor:pointer;text-align:center;transition:.15s}
+.preset-btn{padding:8px 6px;background:#111218;border:1px solid #2d2f3d;border-radius:8px;cursor:pointer;transition:.15s;text-align:left;width:100%}
+.preset-btn:hover{border-color:#702af8;background:rgba(112,42,248,.08)}
+.preset-btn .preset-swatch{width:100%;height:28px;border-radius:5px;margin-bottom:5px;position:relative;overflow:hidden}
+.preset-btn .preset-name{font-size:10px;font-weight:600;color:#cbd5e1;display:block}
+.preset-btn .preset-tags{font-size:8px;color:#94a3b8;margin-top:2px;display:block}
+.pipe-tool-btn{flex:1;min-width:60px;padding:6px 4px;font-size:9px;font-weight:700;background:#111218;border:1px solid #2d2f3d;color:#cbd5e1;border-radius:6px;cursor:pointer;text-align:center;transition:.15s}
 .pipe-tool-btn:hover{border-color:#702af8;color:#a78bfa}
 .pipe-tool-btn.busy{border-color:#702af8;color:#a78bfa;background:rgba(112,42,248,.1)}
 /* Layer list */
 #layer-list{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
 .layer-row{display:flex;align-items:center;gap:6px;padding:6px 8px;background:#111218;border-radius:7px;border:1px solid #2d2f3d;transition:.2s}
 .layer-row.disabled{opacity:.4}
-.layer-eye{width:16px;height:16px;cursor:pointer;color:#4a4f6a;flex-shrink:0;transition:.15s}
+.layer-eye{width:16px;height:16px;cursor:pointer;color:#94a3b8;flex-shrink:0;transition:.15s}
 .layer-eye:hover{color:#a78bfa}
 .layer-eye.on{color:#702af8}
 .layer-name{flex:1;font-size:10px;font-weight:600;color:#c4b5fd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.layer-params{font-size:9px;color:#4a4f6a}
-.layer-btn{width:20px;height:20px;border:none;background:transparent;cursor:pointer;color:#4a4f6a;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:.15s;flex-shrink:0}
+.layer-params{font-size:9px;color:#94a3b8}
+.layer-btn{width:20px;height:20px;border:none;background:transparent;cursor:pointer;color:#94a3b8;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:.15s;flex-shrink:0}
 .layer-btn:hover{color:#e2e8f0;background:rgba(255,255,255,.06)}
 /* Param edit popover */
 .layer-edit-wrap{padding:8px;background:#111218;border:1px solid #2d2f3d;border-radius:8px;margin-top:4px;display:none}
@@ -178,7 +193,7 @@ select:focus{border-color:#702af8}
 #compare-box{background:#1a1b22;border:1px solid #2d2f3d;border-radius:16px;width:min(800px,95vw);height:min(600px,90vh);display:flex;flex-direction:column;overflow:hidden}
 #compare-header{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2d2f3d}
 #compare-header span{font-size:11px;font-weight:700;color:#fff}
-#compare-close{background:transparent;border:none;color:#4a4f6a;cursor:pointer;font-size:16px;line-height:1}
+#compare-close{background:transparent;border:none;color:#cbd5e1;cursor:pointer;font-size:16px;line-height:1}
 #compare-close:hover{color:#fff}
 #compare-viewport{flex:1;position:relative;overflow:hidden;background:#0e0e14;cursor:col-resize}
 #compare-before,#compare-after{position:absolute;inset:0;background-size:contain;background-repeat:no-repeat;background-position:center}
@@ -187,14 +202,14 @@ select:focus{border-color:#702af8}
 #compare-handle{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:32px;height:32px;border-radius:50%;background:#702af8;border:2px solid #fff;cursor:col-resize;display:flex;align-items:center;justify-content:center}
 #compare-labels{position:absolute;bottom:10px;width:100%;display:flex;justify-content:space-between;padding:0 14px;pointer-events:none}
 #compare-labels span{font-size:9px;font-weight:700;color:rgba(255,255,255,.6);background:rgba(0,0,0,.5);padding:2px 7px;border-radius:4px}
-#compare-footer{padding:10px 16px;font-size:10px;color:#4a4f6a;text-align:center;border-top:1px solid #2d2f3d}
+#compare-footer{padding:10px 16px;font-size:10px;color:#94a3b8;text-align:center;border-top:1px solid #2d2f3d}
 #btn-seamless-only{width:100%;padding:7px;margin-bottom:6px;background:transparent;border:1px solid #702af8;color:#a78bfa;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s}
 #btn-seamless-only:hover{background:rgba(112,42,248,.12)}
-#btn-seamless-only:disabled{border-color:#2d2f3d;color:#3a3f5a;cursor:not-allowed}
+#btn-seamless-only:disabled{border-color:#2d2f3d;color:#94a3b8;cursor:not-allowed}
 #btn-sm-apply{padding:9px 18px;background:#702af8;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
 #btn-sm-apply:hover{background:#5d1ee0}
-#btn-sm-cancel{padding:9px 14px;background:transparent;color:#4a4f6a;border:1px solid #2d2f3d;border-radius:8px;font-size:11px;cursor:pointer;white-space:nowrap}
-#btn-sm-cancel:hover{color:#e2e8f0;border-color:#4a4f6a}
+#btn-sm-cancel{padding:9px 14px;background:transparent;color:#94a3b8;border:1px solid #2d2f3d;border-radius:8px;font-size:11px;cursor:pointer;white-space:nowrap}
+#btn-sm-cancel:hover{color:#e2e8f0;border-color:#94a3b8}
 
 /* ── Mobile layout ────────────────────────────────────────────────── */
 @media(max-width:768px){
@@ -225,6 +240,8 @@ select:focus{border-color:#702af8}
   #pipe-param-editor{width:calc(100% - 32px);left:16px;right:16px}
   /* tool buttons — bigger tap area */
   .pipe-tool-btn{padding:8px 4px;font-size:9px;min-height:40px}
+  #tb-preset-btn{bottom:8px;right:8px}
+  #preset-panel{right:8px;width:calc(100vw - 16px);max-width:320px}
   /* sliders — easier to grab */
   input[type=range]{height:8px}
   input[type=range]::-webkit-slider-thumb{width:18px;height:18px}
@@ -244,25 +261,69 @@ select:focus{border-color:#702af8}
     <h1>PBR Texture Generator</h1>
     <p>Generate &amp; Preview in 3D</p>
   </div>
+  <div class="section" id="section-presets" style="display:none"></div>
   <div class="section">
     <div class="sec-title">Input Texture</div>
-    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
-      <img id="preview-thumb">
-      <div class="hint"><span>&#8593;</span>Drag &amp; drop or click to browse</div>
+    <div style="display:flex;gap:4px;margin-bottom:8px">
+      <button id="btn-input-image" onclick="setInputMode('image')" style="flex:1;padding:5px;font-size:10px;font-weight:600;border-radius:6px;border:1px solid #702af8;background:rgba(112,42,248,.15);color:#a78bfa;cursor:pointer;transition:.15s">Image</button>
+      <button id="btn-input-color" onclick="setInputMode('color')" style="flex:1;padding:5px;font-size:10px;font-weight:600;border-radius:6px;border:1px solid #2d2f3d;background:transparent;color:#94a3b8;cursor:pointer;transition:.15s">Solid Color</button>
     </div>
-    <div id="file-name">No file selected</div>
-    <input type="file" id="file-input" accept="image/*">
+    <div id="input-image-mode">
+      <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <img id="preview-thumb">
+        <div class="hint"><span>&#8593;</span>Drag &amp; drop or click to browse</div>
+      </div>
+      <div id="file-name">No file selected</div>
+      <input type="file" id="file-input" accept="image/*">
+    </div>
+    <div id="input-color-mode" style="display:none">
+      <div id="color-picker-collapsed" style="display:none;align-items:center;gap:10px;padding:8px 10px;background:#111218;border:1px solid #2d2f3d;border-radius:8px;cursor:pointer;margin-bottom:0" onclick="document.getElementById('color-picker-collapsed').style.display='none';document.getElementById('color-picker-expanded').style.display='block'">
+        <div id="color-swatch-preview" style="width:28px;height:28px;border-radius:6px;border:1px solid #2d2f3d;flex-shrink:0;background:#808080"></div>
+        <div style="flex:1">
+          <div style="font-size:11px;color:#cbd5e1" id="color-swatch-label">#808080</div>
+          <div style="font-size:9px;color:#94a3b8">Click to change</div>
+        </div>
+      </div>
+      <div id="color-picker-expanded">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <input type="color" id="base-color-picker" value="#808080" style="width:48px;height:48px;border:2px solid #2d2f3d;border-radius:8px;background:none;cursor:pointer;padding:2px">
+          <div style="flex:1">
+            <div style="font-size:11px;color:#cbd5e1;margin-bottom:4px" id="base-color-label">#808080</div>
+            <div style="font-size:9px;color:#94a3b8">Used as base for all map generation</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+          <button onclick="setBaseColor('#ffffff')" style="width:22px;height:22px;border-radius:4px;border:1px solid #2d2f3d;background:#ffffff;cursor:pointer" title="White"></button>
+          <button onclick="setBaseColor('#808080')" style="width:22px;height:22px;border-radius:4px;border:1px solid #2d2f3d;background:#808080;cursor:pointer" title="Mid grey"></button>
+          <button onclick="setBaseColor('#1a1a1a')" style="width:22px;height:22px;border-radius:4px;border:1px solid #2d2f3d;background:#1a1a1a;cursor:pointer" title="Near black"></button>
+          <button onclick="setBaseColor('#c0392b')" style="width:22px;height:22px;border-radius:4px;border:1px solid #2d2f3d;background:#c0392b;cursor:pointer" title="Red"></button>
+          <button onclick="setBaseColor('#e67e22')" style="width:22px;height:22px;border-radius:4px;border:1px solid #2d2f3d;background:#e67e22;cursor:pointer" title="Orange"></button>
+          <button onclick="setBaseColor('#f1c40f')" style="width:22px;height:22px;border-radius:4px;border:1px solid #2d2f3d;background:#f1c40f;cursor:pointer" title="Yellow"></button>
+          <button onclick="setBaseColor('#27ae60')" style="width:22px;height:22px;border-radius:4px;border:1px solid #2d2f3d;background:#27ae60;cursor:pointer" title="Green"></button>
+          <button onclick="setBaseColor('#2980b9')" style="width:22px;height:22px;border-radius:4px;border:1px solid #2d2f3d;background:#2980b9;cursor:pointer" title="Blue"></button>
+          <button onclick="setBaseColor('#8e44ad')" style="width:22px;height:22px;border-radius:4px;border:1px solid #2d2f3d;background:#8e44ad;cursor:pointer" title="Purple"></button>
+          <button onclick="setBaseColor('#b8860b')" style="width:22px;height:22px;border-radius:4px;border:1px solid #2d2f3d;background:#b8860b;cursor:pointer" title="Gold"></button>
+          <button onclick="setBaseColor('#cd853f')" style="width:22px;height:22px;border-radius:4px;border:1px solid #2d2f3d;background:#cd853f;cursor:pointer" title="Bronze"></button>
+          <button onclick="setBaseColor('#b0c4de')" style="width:22px;height:22px;border-radius:4px;border:1px solid #2d2f3d;background:#b0c4de;cursor:pointer" title="Steel"></button>
+        </div>
+        <button onclick="applyBaseColor()" id="btn-apply-color" disabled style="width:100%;padding:7px;background:#702af8;color:#fff;border:none;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s">Apply Color as Base</button>
+      </div>
+    </div>
   </div>
   <div class="section">
-    <div class="sec-title">Map Generation</div>
-    <div class="card">
+    <div class="sec-title">Map Channels</div>
+    <div class="card" id="card-gen-normal">
       <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
-        <span>Normal Map</span>
-        <button class="map-eye-tog active" id="eye-normal" title="Toggle Normal in preview" onclick="toggleMapEye('normal',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+        <span>Bump / Normal</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="map-clear-btn" id="clear-normal" title="Remove custom map" onclick="clearMapOverride('normal')">×</button>
+          <label class="map-upload-btn" title="Upload custom Normal map"><input type="file" accept="image/*" style="display:none" onchange="loadMapOverride('normal',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><line x1="8" y1="11" x2="8" y2="2"/><polyline points="5,5 8,2 11,5"/><line x1="2" y1="14" x2="14" y2="14"/></svg></label>
+          <button class="map-eye-tog active" id="eye-normal" title="Toggle Normal in preview" onclick="toggleMapEye('normal',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+        </div>
       </div>
       <div class="ctrl" style="margin-bottom:0">
         <div class="ctrl-row">
-          <span>Intensity</span>
+          <span>Bump Amount</span>
           <div style="display:flex;align-items:center;gap:6px">
             <span class="sl-spinner" id="spin-ns"></span><b id="vns">0</b>
           </div>
@@ -270,34 +331,45 @@ select:focus{border-color:#702af8}
         <input type="range" id="ns" min="0" max="30" step="1" value="0">
       </div>
     </div>
-    <div class="card">
+    <div class="card" id="card-gen-roughness">
       <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
-        <span>Roughness Map</span>
-        <button class="map-eye-tog active" id="eye-roughness" title="Toggle Roughness in preview" onclick="toggleMapEye('roughness',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+        <span>Roughness / Gloss</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="map-clear-btn" id="clear-roughness" title="Remove custom map" onclick="clearMapOverride('roughness')">×</button>
+          <label class="map-upload-btn" title="Upload custom Roughness map"><input type="file" accept="image/*" style="display:none" onchange="loadMapOverride('roughness',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><line x1="8" y1="11" x2="8" y2="2"/><polyline points="5,5 8,2 11,5"/><line x1="2" y1="14" x2="14" y2="14"/></svg></label>
+          <button class="map-eye-tog active" id="eye-roughness" title="Toggle Roughness in preview" onclick="toggleMapEye('roughness',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+        </div>
       </div>
-      <div class="ctrl">
+      <div class="ctrl" style="margin-bottom:0">
         <div class="ctrl-row">
-          <span>Scale</span>
+          <span>Amount</span>
           <div style="display:flex;align-items:center;gap:6px">
             <span class="sl-spinner" id="spin-ra"></span><b id="vra">0.00</b>
           </div>
         </div>
         <input type="range" id="ra" min="0.0" max="2.0" step="0.05" value="0">
       </div>
-      <div class="ctrl" style="margin-bottom:0">
-        <div class="ctrl-row">
-          <span>Bias</span>
-          <div style="display:flex;align-items:center;gap:6px">
-            <span class="sl-spinner" id="spin-rb"></span><b id="vrb">0</b>
+      <details style="margin-top:8px">
+        <summary class="adv-summary">Advanced</summary>
+        <div class="ctrl" style="margin-top:8px;margin-bottom:0">
+          <div class="ctrl-row">
+            <span>Brightness Offset</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="sl-spinner" id="spin-rb"></span><b id="vrb">0</b>
+            </div>
           </div>
+          <input type="range" id="rb" min="-100" max="100" step="1" value="0">
         </div>
-        <input type="range" id="rb" min="-100" max="100" step="1" value="0">
-      </div>
+      </details>
     </div>
-    <div class="card">
+    <div class="card" id="card-gen-ao">
       <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
-        <span>Ambient Occlusion Map</span>
-        <button class="map-eye-tog active" id="eye-ao" title="Toggle AO in preview" onclick="toggleMapEye('ao',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+        <span>Ambient Occlusion</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="map-clear-btn" id="clear-ao" title="Remove custom map" onclick="clearMapOverride('ao')">×</button>
+          <label class="map-upload-btn" title="Upload custom AO map"><input type="file" accept="image/*" style="display:none" onchange="loadMapOverride('ao',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><line x1="8" y1="11" x2="8" y2="2"/><polyline points="5,5 8,2 11,5"/><line x1="2" y1="14" x2="14" y2="14"/></svg></label>
+          <button class="map-eye-tog active" id="eye-ao" title="Toggle AO in preview" onclick="toggleMapEye('ao',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+        </div>
       </div>
       <div class="ctrl" style="margin-bottom:0">
         <div class="ctrl-row">
@@ -309,96 +381,134 @@ select:focus{border-color:#702af8}
         <input type="range" id="aogen" min="0.0" max="3.0" step="0.1" value="0">
       </div>
     </div>
-    <div class="card">
+    <div class="card" id="card-gen-height">
       <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
-        <span>Height Map</span>
-        <button class="map-eye-tog active" id="eye-height" title="Toggle Height in preview" onclick="toggleMapEye('height',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+        <span>Displacement / Height</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="map-clear-btn" id="clear-height" title="Remove custom map" onclick="clearMapOverride('height')">×</button>
+          <label class="map-upload-btn" title="Upload custom Height map"><input type="file" accept="image/*" style="display:none" onchange="loadMapOverride('height',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><line x1="8" y1="11" x2="8" y2="2"/><polyline points="5,5 8,2 11,5"/><line x1="2" y1="14" x2="14" y2="14"/></svg></label>
+          <button class="map-eye-tog active" id="eye-height" title="Toggle Height in preview" onclick="toggleMapEye('height',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+        </div>
       </div>
-      <div class="ctrl">
+      <div class="ctrl" style="margin-bottom:0">
         <div class="ctrl-row">
-          <span>Height Scale</span>
+          <span>Displacement Amount</span>
           <div style="display:flex;align-items:center;gap:6px">
             <span class="sl-spinner" id="spin-hgt-scale"></span><b id="vhgtscale">0.0</b>
           </div>
         </div>
         <input type="range" id="hgt-scale" min="0.0" max="0.5" step="0.01" value="0">
       </div>
-      <div class="ctrl">
-        <div class="ctrl-row">
-          <span>Contrast</span>
-          <div style="display:flex;align-items:center;gap:6px">
-            <span class="sl-spinner" id="spin-hgt-contrast"></span><b id="vhgtcontrast">1.8</b>
+      <details style="margin-top:8px">
+        <summary class="adv-summary">Advanced</summary>
+        <div class="ctrl" style="margin-top:8px">
+          <div class="ctrl-row">
+            <span>Sharpness</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="sl-spinner" id="spin-hgt-contrast"></span><b id="vhgtcontrast">1.8</b>
+            </div>
+          </div>
+          <input type="range" id="hgt-contrast" min="0.5" max="4.0" step="0.1" value="1.8">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-row" style="align-items:center">
+            <span>Invert</span>
+            <label class="pill-switch" style="margin:0">
+              <input type="checkbox" id="hgt-invert">
+              <div class="pill-switch-track"></div>
+            </label>
           </div>
         </div>
-        <input type="range" id="hgt-contrast" min="0.5" max="4.0" step="0.1" value="1.8">
-      </div>
-      <div class="ctrl">
-        <div class="ctrl-row" style="align-items:center">
-          <span>Invert</span>
-          <label class="pill-switch" style="margin:0">
-            <input type="checkbox" id="hgt-invert">
-            <div class="pill-switch-track"></div>
-          </label>
+        <div class="ctrl" style="margin-bottom:0">
+          <div class="ctrl-row"><span>Geometry Subdivisions</span><b id="vsubs">64</b></div>
+          <input type="range" id="geo-subs" min="8" max="256" step="8" value="64">
+          <div style="margin-top:4px;font-size:9px;color:#64748b;line-height:1.5">Higher = better displacement detail. Default 64 is balanced.</div>
         </div>
-      </div>
-      <div class="ctrl" style="margin-bottom:0">
-        <div class="ctrl-row"><span>Subdivisions</span><b id="vsubs">64</b></div>
-        <input type="range" id="geo-subs" min="8" max="256" step="8" value="64">
-      </div>
-      <div style="margin-top:8px;font-size:9px;color:#4a4f6a;line-height:1.6">
-        Increase Subdivisions for more physically detailed displacement. Default 64 is balanced — higher values add quality but cost performance.
-      </div>
+      </details>
     </div>
-    <div class="card">
+    <div class="card" id="card-gen-metalness">
       <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
-        <span>Metalness Map</span>
-        <button class="map-eye-tog active" id="eye-metalness" title="Toggle Metalness in preview" onclick="toggleMapEye('metalness',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+        <span>Reflection / Metallic</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="map-clear-btn" id="clear-metalness" title="Remove custom map" onclick="clearMapOverride('metalness')">×</button>
+          <label class="map-upload-btn" title="Upload custom Metalness map"><input type="file" accept="image/*" style="display:none" onchange="loadMapOverride('metalness',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><line x1="8" y1="11" x2="8" y2="2"/><polyline points="5,5 8,2 11,5"/><line x1="2" y1="14" x2="14" y2="14"/></svg></label>
+          <button class="map-eye-tog active" id="eye-metalness" title="Toggle Metalness in preview" onclick="toggleMapEye('metalness',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+        </div>
       </div>
       <div class="ctrl">
         <div class="ctrl-row">
-          <span>Threshold</span>
+          <span>Metallic Amount</span>
           <div style="display:flex;align-items:center;gap:6px">
             <span class="sl-spinner" id="spin-met-threshold"></span><b id="vmetth">1.00</b>
           </div>
         </div>
         <input type="range" id="met-threshold" min="0.0" max="1.0" step="0.05" value="1.0">
       </div>
-      <div class="ctrl" style="margin-bottom:0">
-        <div class="ctrl-row">
-          <span>Contrast</span>
-          <div style="display:flex;align-items:center;gap:6px">
-            <span class="sl-spinner" id="spin-met-contrast"></span><b id="vmetcon">1.0</b>
+      <details style="margin-top:4px">
+        <summary class="adv-summary">Advanced</summary>
+        <div class="ctrl" style="margin-top:8px;margin-bottom:0">
+          <div class="ctrl-row">
+            <span>Edge Sharpness</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="sl-spinner" id="spin-met-contrast"></span><b id="vmetcon">1.0</b>
+            </div>
           </div>
+          <input type="range" id="met-contrast" min="1.0" max="10.0" step="0.5" value="1.0">
         </div>
-        <input type="range" id="met-contrast" min="1.0" max="10.0" step="0.5" value="1.0">
-      </div>
+      </details>
     </div>
-    <div class="card">
+    <div class="card" id="card-gen-emissive">
       <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
-        <span>Emissive Map</span>
-        <button class="map-eye-tog active" id="eye-emissive" title="Toggle Emissive in preview" onclick="toggleMapEye('emissive',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
-      </div>
-      <div class="ctrl">
-        <div class="ctrl-row">
-          <span>Glow Threshold</span>
-          <div style="display:flex;align-items:center;gap:6px">
-            <span class="sl-spinner" id="spin-emi-threshold"></span><b id="vemith">1.00</b>
-          </div>
+        <span>Self-Illumination</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="map-clear-btn" id="clear-emissive" title="Remove custom map" onclick="clearMapOverride('emissive')">×</button>
+          <label class="map-upload-btn" title="Upload custom Emissive map"><input type="file" accept="image/*" style="display:none" onchange="loadMapOverride('emissive',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><line x1="8" y1="11" x2="8" y2="2"/><polyline points="5,5 8,2 11,5"/><line x1="2" y1="14" x2="14" y2="14"/></svg></label>
+          <button class="map-eye-tog active" id="eye-emissive" title="Toggle Emissive in preview" onclick="toggleMapEye('emissive',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
         </div>
-        <input type="range" id="emi-threshold" min="0.3" max="1.0" step="0.05" value="1.0">
       </div>
       <div class="ctrl" style="margin-bottom:0">
         <div class="ctrl-row">
-          <span>Glow Intensity</span>
+          <span>Multiplier</span>
           <div style="display:flex;align-items:center;gap:6px">
             <span class="sl-spinner" id="spin-emi-intensity"></span><b id="vemiint">0.0</b>
           </div>
         </div>
         <input type="range" id="emi-intensity" min="0.0" max="5.0" step="0.5" value="0.0">
       </div>
+      <details style="margin-top:8px">
+        <summary class="adv-summary">Advanced</summary>
+        <div class="ctrl" style="margin-top:8px;margin-bottom:0">
+          <div class="ctrl-row">
+            <span>Luminance Threshold</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="sl-spinner" id="spin-emi-threshold"></span><b id="vemith">1.00</b>
+            </div>
+          </div>
+          <input type="range" id="emi-threshold" min="0.3" max="1.0" step="0.05" value="1.0">
+        </div>
+      </details>
+    </div>
+    <div class="card" id="card-gen-opacity">
+      <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Opacity / Cutout</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="map-clear-btn" id="clear-opacity" title="Remove custom map" onclick="clearMapOverride('opacity')">×</button>
+          <label class="map-upload-btn" title="Upload custom Opacity map"><input type="file" accept="image/*" style="display:none" onchange="loadMapOverride('opacity',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><line x1="8" y1="11" x2="8" y2="2"/><polyline points="5,5 8,2 11,5"/><line x1="2" y1="14" x2="14" y2="14"/></svg></label>
+          <button class="map-eye-tog active" id="eye-opacity" title="Toggle Opacity in preview" onclick="toggleMapEye('opacity',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+        </div>
+      </div>
+      <div class="ctrl" style="margin-bottom:0">
+        <div class="ctrl-row">
+          <span>Cutout Threshold</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="sl-spinner" id="spin-opa-threshold"></span><b id="vopath">0.5</b>
+          </div>
+        </div>
+        <input type="range" id="opa-threshold" min="0.0" max="1.0" step="0.05" value="0.5">
+      </div>
     </div>
     <div class="card">
-      <button id="btn-tile-test" style="display:none;width:100%;margin-bottom:10px;padding:7px;background:transparent;border:1px solid #2d2f3d;color:#6b7280;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s" onclick="openTileTest()">⊞ Preview 2×2 Tiling</button>
+      <button id="btn-tile-test" style="display:none;width:100%;margin-bottom:10px;padding:7px;background:transparent;border:1px solid #2d2f3d;color:#94a3b8;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s" onclick="openTileTest()">⊞ Preview 2×2 Tiling</button>
       <div class="toggle-row">
         <span style="font-size:11px;font-weight:600;color:#c4b5fd">Make Seamless</span>
         <label class="pill-switch">
@@ -488,12 +598,31 @@ select:focus{border-color:#702af8}
         <button class="map-row-btn" id="btn-regen-emi" disabled title="Regenerate" onclick="regenMap('emissive')"><svg viewBox="0 0 16 16"><path d="M13 8A5 5 0 1 1 8 3"/><polyline points="13,3 13,8 8,8"/></svg></button>
         <button class="map-row-btn" id="btn-dl-emi" disabled title="Download" onclick="downloadMap('emissive')"><svg viewBox="0 0 16 16"><line x1="8" y1="2" x2="8" y2="11"/><polyline points="4,7 8,11 12,7"/><line x1="2" y1="14" x2="14" y2="14"/></svg></button>
       </div>
+      <!-- Opacity -->
+      <div class="map-row" id="pill-opa">
+        <span class="map-row-icon">—</span>
+        <span class="map-row-name">Opacity</span>
+        <button class="map-row-btn" id="btn-eye-opa" disabled title="Preview" onclick="openMapPreview('opacity')"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8" stroke-linejoin="round"/></svg></button>
+        <button class="map-row-btn" id="btn-regen-opa" disabled title="Regenerate" onclick="regenMap('opacity')"><svg viewBox="0 0 16 16"><path d="M13 8A5 5 0 1 1 8 3"/><polyline points="13,3 13,8 8,8"/></svg></button>
+        <button class="map-row-btn" id="btn-dl-opa" disabled title="Download" onclick="downloadMap('opacity')"><svg viewBox="0 0 16 16"><line x1="8" y1="2" x2="8" y2="11"/><polyline points="4,7 8,11 12,7"/><line x1="2" y1="14" x2="14" y2="14"/></svg></button>
+      </div>
       <div id="progress-wrap" style="margin-top:8px;display:none">
         <div id="progress-bar-outer"><div id="progress-bar"></div></div>
         <div id="progress-label"></div>
       </div>
     </div>
-    <button id="btn-dl-all" style="width:100%;padding:8px;background:transparent;border:1px solid #2d3748;color:#64748b;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;transition:.15s" disabled>&#8595; Download All Maps (ZIP)</button>
+    <button id="btn-dl-all" style="width:100%;padding:8px;background:transparent;border:1px solid #2d3748;color:#cbd5e1;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;transition:.15s" disabled>&#8595; Download All Maps (ZIP)</button>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:9px;color:#94a3b8;white-space:nowrap">Output resolution</span>
+      <select id="output-res" style="flex:1;font-size:10px;padding:4px 8px">
+        <option value="256">256 × 256</option>
+        <option value="512">512 × 512</option>
+        <option value="1024" selected>1024 × 1024 (1K)</option>
+        <option value="2048">2048 × 2048 (2K)</option>
+        <option value="4096">4096 × 4096 (4K)</option>
+        <option value="0">Source resolution</option>
+      </select>
+    </div>
   </div>
   <!-- ── Processing Pipeline ─────────────────────────────────────── -->
   <div class="section" id="section-pipeline">
@@ -510,7 +639,7 @@ select:focus{border-color:#702af8}
         <div id="ppe-inner"></div>
         <div style="display:flex;gap:6px;margin-top:8px">
           <button id="ppe-apply" style="flex:1;padding:7px;background:#702af8;color:#fff;border:none;border-radius:7px;font-size:10px;font-weight:700;cursor:pointer">Apply Layer</button>
-          <button id="ppe-cancel" style="padding:7px 12px;background:transparent;color:#4a4f6a;border:1px solid #2d2f3d;border-radius:7px;font-size:10px;cursor:pointer">Cancel</button>
+          <button id="ppe-cancel" style="padding:7px 12px;background:transparent;color:#94a3b8;border:1px solid #2d2f3d;border-radius:7px;font-size:10px;cursor:pointer">Cancel</button>
         </div>
       </div>
     </div>
@@ -520,11 +649,11 @@ select:focus{border-color:#702af8}
         <div class="layer-row" id="layer-original">
           <svg class="layer-eye on" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg>
           <span class="layer-name">Original</span>
-          <span class="layer-params" style="color:#3a3f5a">base</span>
+          <span class="layer-params" style="color:#94a3b8">base</span>
         </div>
       </div>
       <div style="display:flex;gap:6px;margin-top:4px">
-        <button id="btn-reset-pipeline" style="flex:1;padding:7px;background:transparent;border:1px solid #2d2f3d;color:#4a4f6a;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s;display:none">↩ Flatten</button>
+        <button id="btn-reset-pipeline" style="flex:1;padding:7px;background:transparent;border:1px solid #2d2f3d;color:#94a3b8;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s;display:none">↩ Flatten</button>
         <button id="btn-dl-flattened" style="flex:1;padding:7px;background:transparent;border:1px solid #702af8;color:#a78bfa;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s;display:none">↓ Export</button>
       </div>
     </div>
@@ -569,7 +698,7 @@ select:focus{border-color:#702af8}
         <input type="range" id="aoi" min="0" max="2" step="0.1" value="0.6">
       </div>
       <div class="ctrl" style="margin-bottom:0">
-        <div class="ctrl-row"><span>Opacity</span><span style="font-size:10px;color:#475569">0=transparent · 1=opaque</span></div>
+        <div class="ctrl-row"><span>Opacity</span><span style="font-size:10px;color:#94a3b8">0=transparent · 1=opaque</span></div>
         <div class="ctrl-row"><b id="vopacity">1.0</b></div>
         <input type="range" id="opacity-slider" min="0" max="1" step="0.01" value="1">
       </div>
@@ -580,8 +709,16 @@ select:focus{border-color:#702af8}
       <div class="card-label">Lighting</div>
       <div id="manual-light-ctrls">
         <div class="ctrl">
-          <div class="ctrl-row"><span>Light Power</span><b id="vli">3.0</b></div>
-          <input type="range" id="li" min="0" max="8" step="0.1" value="3">
+          <div class="ctrl-row"><span>Key Light</span><b id="vli">2.5</b></div>
+          <input type="range" id="li" min="0" max="8" step="0.1" value="2.5">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-row"><span>Ambient</span><b id="vamb">0.4</b></div>
+          <input type="range" id="amb" min="0" max="3" step="0.1" value="0.4">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-row"><span>Temperature</span><b id="vkelvin">6500K</b></div>
+          <input type="range" id="kelvin" min="1000" max="12000" step="100" value="6500">
         </div>
         <div class="ctrl">
           <div class="ctrl-row"><span>Azimuth</span><b id="vlx">45°</b></div>
@@ -604,7 +741,7 @@ select:focus{border-color:#702af8}
       </div>
     </div>
   </div>
-  <div style="padding:10px 16px 14px;font-size:10px;color:#475569;text-align:center;line-height:1.9">
+  <div style="padding:10px 16px 14px;font-size:10px;color:#94a3b8;text-align:center;line-height:1.9">
     Drag: Rotate · Right drag: Pan · Scroll: Zoom
   </div>
 </div>
@@ -620,9 +757,19 @@ select:focus{border-color:#702af8}
     <button class="tb-btn" id="tb-shape-wrap" title="Right-click to change shape"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><circle cx="8" cy="8" r="6"/><ellipse cx="8" cy="8" rx="3" ry="6"/><line x1="2" y1="8" x2="14" y2="8"/></svg></button>
     <!-- Lighting: single icon, right-click to pick HDRI preset or switch mode -->
     <button class="tb-btn" id="tb-lighting-btn" title="Right-click for lighting options"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><circle cx="8" cy="8" r="3"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/><line x1="3" y1="3" x2="4.5" y2="4.5"/><line x1="11.5" y1="11.5" x2="13" y2="13"/><line x1="13" y1="3" x2="11.5" y2="4.5"/><line x1="4.5" y1="11.5" x2="3" y2="13"/></svg></button>
+    <!-- Standard views -->
+    <button class="tb-btn" id="tb-views-btn" title="Snap to standard view" onclick="snapToStandardView()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/><line x1="4.5" y1="4.5" x2="11.5" y2="11.5" stroke-dasharray="2,1.5"/></svg></button>
+    <div id="view-label" style="position:absolute;top:56px;right:12px;font-size:9px;font-weight:700;color:#a78bfa;background:rgba(26,27,34,.9);padding:2px 7px;border-radius:4px;pointer-events:none;opacity:0;transition:opacity .3s"></div>
   </div>
-  <!-- Shape context menu -->
-  <div class="ctx-menu" id="ctx-shape">
+  <!-- Floating preset button + popup -->
+  <button id="tb-preset-btn" class="tb-btn" title="Material Presets" style="position:absolute;bottom:12px;right:12px;z-index:6" onclick="togglePresetPanel()">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+  </button>
+  <div id="preset-panel" style="display:none;position:absolute;bottom:56px;right:12px;z-index:6;width:260px;height:420px;background:#1a1b22;border:1px solid #2d2f3d;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.7);overflow:hidden;flex-direction:column">
+    <div style="padding:10px 14px 8px;border-bottom:1px solid #2d2f3d;font-size:10px;font-weight:700;color:#a78bfa;letter-spacing:.8px;text-transform:uppercase;flex-shrink:0">Material Presets</div>
+    <div id="preset-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;padding:10px;overflow-y:auto;flex:1;min-height:0"></div>
+  </div>
+  <!-- Shape context menu -->  <div class="ctx-menu" id="ctx-shape">
     <div class="ctx-item active" data-shape="sphere"><span class="ctx-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><ellipse cx="8" cy="8" rx="3" ry="6"/><line x1="2" y1="8" x2="14" y2="8"/></svg></span>Sphere</div>
     <div class="ctx-item" data-shape="plane"><span class="ctx-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="12" height="7" rx="1"/></svg></span>Plane</div>
     <div class="ctx-item" data-shape="cube"><span class="ctx-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10.5L8 13.5L13 10.5V5.5L8 2.5L3 5.5z"/><line x1="8" y1="13.5" x2="8" y2="8"/><line x1="3" y1="5.5" x2="8" y2="8"/><line x1="13" y1="5.5" x2="8" y2="8"/></svg></span>Cube</div>
@@ -651,8 +798,9 @@ select:focus{border-color:#702af8}
     <div class="map-card" id="card-height"><div class="map-card-title">Height</div><div class="placeholder">—</div></div>
     <div class="map-card" id="card-metalness"><div class="map-card-title">Metalness</div><div class="placeholder">—</div></div>
     <div class="map-card" id="card-emissive"><div class="map-card-title">Emissive</div><div class="placeholder">—</div></div>
+    <div class="map-card" id="card-opacity"><div class="map-card-title">Opacity</div><div class="placeholder">—</div></div>
     <div class="map-card" id="card-tile-test" style="grid-column:1/-1">
-      <div class="map-card-title"><span>Tiling Test (3×3)</span><span style="font-size:10px;color:#475569;font-weight:400">Check for seams</span></div>
+      <div class="map-card-title"><span>Tiling Test (3×3)</span><span style="font-size:10px;color:#94a3b8;font-weight:400">Check for seams</span></div>
       <div class="placeholder" style="height:160px">—</div>
     </div>
   </div>
@@ -688,14 +836,14 @@ select:focus{border-color:#702af8}
       <span style="font-size:11px;font-weight:700;color:#fff">2×2 Tiling Preview</span>
       <div style="display:flex;align-items:center;gap:8px">
         <button id="btn-toggle-guides" onclick="toggleTileGuides()" style="padding:3px 10px;font-size:9px;font-weight:700;background:rgba(112,42,248,.2);border:1px solid #702af8;color:#a78bfa;border-radius:5px;cursor:pointer;transition:.15s">Guidelines ON</button>
-        <button onclick="closeTileTest()" style="background:transparent;border:none;color:#4a4f6a;cursor:pointer;font-size:16px;line-height:1">✕</button>
+        <button onclick="closeTileTest()" style="background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:16px;line-height:1">✕</button>
       </div>
     </div>
     <div style="position:relative;border-radius:8px;overflow:hidden">
       <canvas id="tile-test-modal-canvas" style="width:100%;display:block"></canvas>
       <canvas id="tile-test-guide-canvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none"></canvas>
     </div>
-    <p style="font-size:10px;color:#4a4f6a;text-align:center;margin:0">Inspect the seam lines — visible hard edges mean the texture needs seamless processing</p>
+    <p style="font-size:10px;color:#94a3b8;text-align:center;margin:0">Inspect the seam lines — visible hard edges mean the texture needs seamless processing</p>
   </div>
 </div>
 

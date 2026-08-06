@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "name": "⏳ Retry Kiro (180s delay)",
+  "description": "Waits 180 seconds then sends 'continue' to Kiro to retry after rate limits",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": ""
+  },
+  "workspaceFolderName": "PBR Texture Generator",
+  "shortName": "retry-after-rate-limit"
+}

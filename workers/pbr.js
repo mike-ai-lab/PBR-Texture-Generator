@@ -308,14 +308,26 @@ function generateEmissive(rgba, w, h, threshold, intensity) {
   return out;
 }
 
+// Opacity: luminance threshold — cut-out mask for leaves/glass/water
+function generateOpacity(gray, w, h, threshold) {
+  const out = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0; i < w * h; i++) {
+    const v = gray[i] > threshold * 255 ? 255 : 0;
+    out[i*4] = out[i*4+1] = out[i*4+2] = v;
+    out[i*4+3] = 255;
+  }
+  return out;
+}
+
 // ── Worker message handler ────────────────────────────────────────────
 self.onmessage = function(e) {
   const { rgba, width, height, normalStrength, roughAlpha, roughBeta, aoAlpha,
           heightScale, heightContrast, heightInvert,
           metalnessThreshold, metalnessContrast,
           emissiveThreshold, emissiveIntensity,
+          opacityThreshold,
           enableNormal, enableRoughness, enableAO,
-          enableHeight, enableMetalness, enableEmissive,
+          enableHeight, enableMetalness, enableEmissive, enableOpacity,
           makeSeamlessFlag, blendRatio, workSize, seamlessOnlyMode } = e.data;
 
   let pixels = rgba;
@@ -332,7 +344,7 @@ self.onmessage = function(e) {
   }
 
   // Count enabled maps for progress
-  const extraMaps = (enableHeight ? 1 : 0) + (enableMetalness ? 1 : 0) + (enableEmissive ? 1 : 0);
+  const extraMaps = (enableHeight ? 1 : 0) + (enableMetalness ? 1 : 0) + (enableEmissive ? 1 : 0) + (enableOpacity ? 1 : 0);
   const baseMaps = 1 + (enableNormal ? 1 : 0) + (enableRoughness ? 1 : 0) + (enableAO ? 1 : 0); // albedo + enabled base maps
   const total = (makeSeamlessFlag ? 1 : 0) + baseMaps + extraMaps;
   let step = makeSeamlessFlag ? 1 : 0;
@@ -358,7 +370,7 @@ self.onmessage = function(e) {
     aoData = generateAO(gray, width, height, aoAlpha);
   }
 
-  let hgtData = null, metData = null, emiData = null;
+  let hgtData = null, metData = null, emiData = null, opaData = null;
 
   if (enableHeight) {
     self.postMessage({ type: 'progress', step: ++step, total, label: 'Generating height map…' });
@@ -372,6 +384,10 @@ self.onmessage = function(e) {
     self.postMessage({ type: 'progress', step: ++step, total, label: 'Generating emissive map…' });
     emiData = generateEmissive(pixels, width, height, emissiveThreshold ?? 0.8, emissiveIntensity ?? 2.0);
   }
+  if (enableOpacity) {
+    self.postMessage({ type: 'progress', step: ++step, total, label: 'Generating opacity map…' });
+    opaData = generateOpacity(gray, width, height, opacityThreshold ?? 0.5);
+  }
 
   const transfers = [pixels.buffer];
   if (nrmData) transfers.push(nrmData.buffer);
@@ -380,11 +396,12 @@ self.onmessage = function(e) {
   if (hgtData) transfers.push(hgtData.buffer);
   if (metData) transfers.push(metData.buffer);
   if (emiData) transfers.push(emiData.buffer);
+  if (opaData) transfers.push(opaData.buffer);
 
   self.postMessage({
     type: 'done',
     albedo: pixels, normal: nrmData, roughness: rghData, ao: aoData,
-    heightMap: hgtData, metalness: metData, emissive: emiData,
+    heightMap: hgtData, metalness: metData, emissive: emiData, opacity: opaData,
     width, height
   }, transfers);
 };

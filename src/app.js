@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RGBELoader }    from 'three/addons/loaders/RGBELoader.js';
+import { PRESETS }       from './presets.js';
 
 // ── Workers — external files, no blob URL needed ────────────────────
 const _mainWorkerURL = 'workers/pbr.js';
@@ -26,12 +27,15 @@ controls.rotateSpeed = 0.8;
 controls.minDistance = 1;
 controls.maxDistance = 20;
 
-scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-const dirLight = new THREE.DirectionalLight(0xffffff, 3.0);
+const ambLight = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambLight);
+const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
 dirLight.position.set(5, 8, 5);
 scene.add(dirLight);
-const rim  = new THREE.DirectionalLight(0xddeeff, 1.0); rim.position.set(-5, 5, -5); scene.add(rim);
-const fill = new THREE.DirectionalLight(0xffffff, 0.6);  fill.position.set(0, -5, 3); scene.add(fill);
+// Rim light — subtle backlight for depth separation
+const rim  = new THREE.DirectionalLight(0xddeeff, 0.5); rim.position.set(-5, 3, -5); scene.add(rim);
+// Fill light — soft shadow fill from below
+const fill = new THREE.DirectionalLight(0xffffff, 0.3); fill.position.set(0, -4, 3); scene.add(fill);
 
 // Resize: always sync camera aspect (free), only resize buffer when requested
 const _canvasWrap = document.getElementById('canvas-wrap');
@@ -85,6 +89,47 @@ animationLoop();
 requestRender();
 document.addEventListener('visibilitychange', () => { if (!document.hidden) requestRender(); });
 
+// ── Standard view snap ────────────────────────────────────────────────
+const _STANDARD_VIEWS = [
+  { name:'Front',  pos: new THREE.Vector3(0, 0,  7) },
+  { name:'Back',   pos: new THREE.Vector3(0, 0, -7) },
+  { name:'Right',  pos: new THREE.Vector3(7, 0,  0) },
+  { name:'Left',   pos: new THREE.Vector3(-7,0,  0) },
+  { name:'Top',    pos: new THREE.Vector3(0, 7,  0) },
+  { name:'Bottom', pos: new THREE.Vector3(0,-7,  0) },
+];
+
+function snapToStandardView() {
+  const cur = camera.position.clone().normalize();
+  let best = _STANDARD_VIEWS[0], bestDot = -Infinity;
+  for (const v of _STANDARD_VIEWS) {
+    const d = cur.dot(v.pos.clone().normalize());
+    if (d > bestDot) { bestDot = d; best = v; }
+  }
+  // Smooth tween to target
+  const start = camera.position.clone();
+  const end   = best.pos.clone();
+  const dur   = 350, t0 = performance.now();
+  function tween() {
+    const t = Math.min((performance.now() - t0) / dur, 1);
+    const e = t < 0.5 ? 2*t*t : -1+(4-2*t)*t; // ease-in-out
+    camera.position.lerpVectors(start, end, e);
+    camera.lookAt(controls.target);
+    controls.update(); requestRender();
+    if (t < 1) requestAnimationFrame(tween);
+  }
+  requestAnimationFrame(tween);
+  // Show label
+  const lbl = document.getElementById('view-label');
+  if (lbl) {
+    lbl.textContent = best.name;
+    lbl.style.opacity = '1';
+    clearTimeout(lbl._t);
+    lbl._t = setTimeout(() => { lbl.style.opacity = '0'; }, 1200);
+  }
+}
+window.snapToStandardView = snapToStandardView;
+
 // Hide loading overlay — wait for first real render after layout resolves
 const loadEl = document.getElementById('loading');
 (function waitForFirstRender() {
@@ -114,6 +159,7 @@ const propMap = {
   metalness: 'metalnessMap',
   emissive:  'emissiveMap',
   height:    'displacementMap',
+  opacity:   'alphaMap',
 };
 
 function buildShape(type) {
@@ -204,7 +250,8 @@ function applyMaps(maps) {
       tex.repeat.set(t, t);
       loadedMaps[key] = tex;
       const eyeBtn = document.getElementById('eye-' + key);
-      if (!eyeBtn || eyeBtn.classList.contains('active')) {
+      const eyeActive = !eyeBtn || eyeBtn.classList.contains('active');
+      if (eyeActive) {
         mat[propMap[key]] = tex;
         if (key === 'normal') {
           const nsc = parseFloat(document.getElementById('nsc').value) || 1;
@@ -212,22 +259,18 @@ function applyMaps(maps) {
         }
         if (key === 'ao') mat.aoMapIntensity = parseFloat(document.getElementById('aoi').value) || 0.6;
         if (key === 'emissive') {
-          const eyeBtn = document.getElementById('eye-emissive');
-          if (!eyeBtn || eyeBtn.classList.contains('active')) {
-            mat.emissive = new THREE.Color(0xffffff); mat.emissiveIntensity = 1.0;
-          }
+          mat.emissive = new THREE.Color(0xffffff);
+          mat.emissiveIntensity = parseFloat(document.getElementById('emi-intensity').value) || 1.0;
         }
         if (key === 'height') {
           const sv = parseFloat(document.getElementById('hgt-scale').value) || 0;
           mat.displacementScale = sv; mat.displacementBias = -sv / 2;
         }
-        if (key === 'metalness') {
-          const eyeBtn = document.getElementById('eye-metalness');
-          if (!eyeBtn || eyeBtn.classList.contains('active')) mat.metalness = 1.0;
-        }
+        if (key === 'metalness') mat.metalness = 1.0;
+        if (key === 'opacity') { mat.transparent = true; mat.alphaTest = 0.01; }
       }
-      mat.needsUpdate = true; requestRender(4);
-      if (++loaded === keys.length) { mat.needsUpdate = true; requestRender(8); }
+      mat.needsUpdate = true; requestRender();
+      if (++loaded === keys.length) { mat.needsUpdate = true; requestRender(); }
     });
   });
   mat.roughness = 1.0; mat.color.set(0xffffff);
@@ -239,7 +282,7 @@ function applyMaps(maps) {
 function populate2D(maps) {
   const labels = {
     albedo:'Albedo', normal:'Normal', roughness:'Roughness', ao:'Ambient Occlusion',
-    height:'Height', metalness:'Metalness', emissive:'Emissive',
+    height:'Height', metalness:'Metalness', emissive:'Emissive', opacity:'Opacity',
   };
   Object.keys(labels).forEach(key => {
     const card = document.getElementById('card-'+key);
@@ -441,20 +484,50 @@ function _dataUrlToBytes(dataUrl) {
   return arr;
 }
 
+// Resize a dataUrl image to target dimensions, returns a new dataUrl
+function _resizeDataUrl(dataUrl, tw, th) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = tw; c.height = th;
+      c.getContext('2d').drawImage(img, 0, 0, tw, th);
+      res(c.toDataURL('image/png'));
+    };
+    img.src = dataUrl;
+  });
+}
+
+// Normalize all maps to the same resolution
+async function _normalizeMaps(maps) {
+  const resEl = document.getElementById('output-res');
+  const targetRes = parseInt(resEl?.value || '0');
+  if (!targetRes) return maps; // 0 = source resolution, no resize
+
+  const normalized = {};
+  await Promise.all(Object.entries(maps).map(async ([key, dataUrl]) => {
+    normalized[key] = await _resizeDataUrl(dataUrl, targetRes, targetRes);
+  }));
+  return normalized;
+}
+
 async function downloadZip(maps, name) {
+  // Normalize all maps to the same resolution
+  const normalizedMaps = await _normalizeMaps(maps);
+
   const files = [];
   // Map textures
-  for (const [key, dataUrl] of Object.entries(maps)) {
+  for (const [key, dataUrl] of Object.entries(normalizedMaps)) {
     files.push({ name: `${name}_${key}.png`, data: _dataUrlToBytes(dataUrl) });
   }
   // 3D shader preview
   const shaderPreview = _buildShaderPreview();
   if (shaderPreview) files.push({ name: `${name}_preview_3d.png`, data: _dataUrlToBytes(shaderPreview) });
-  // 2D flat material preview
-  const preview2d = await _build2DPreview(maps);
+  // 2D flat material preview (composite: albedo + AO + emissive)
+  const preview2d = await _build2DPreview(normalizedMaps);
   if (preview2d) files.push({ name: `${name}_preview_2d.png`, data: _dataUrlToBytes(preview2d) });
-  // 2x2 tiled preview
-  const tileSource = maps.albedo
+  // 2x2 tiled preview — use the 2D composite as source so it shows the full material
+  const tileSource = preview2d || normalizedMaps.albedo
     || (stackImageData ? _imageDataToDataURL(stackImageData, stackImageData.width, stackImageData.height) : null)
     || (loadedImageData ? _imageDataToDataURL(loadedImageData, loadedImageData.width, loadedImageData.height) : null);
   if (tileSource) {
@@ -477,11 +550,87 @@ function sl(id, vid, dec, cb) {
   const el = document.getElementById(id), vl = document.getElementById(vid);
   if (!el||!vl) return;
   el.addEventListener('input', () => { const v=parseFloat(el.value); vl.textContent=v.toFixed(dec); cb(v); });
+  // Click value label → inline numeric input
+  vl.style.cursor = 'text';
+  vl.title = 'Click to enter a value';
+  vl.addEventListener('click', () => {
+    const cur = el.value;
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.value = cur; inp.step = el.step || 'any';
+    inp.style.cssText = 'width:52px;font-size:11px;font-weight:600;color:#c4b5fd;background:#1a1b22;border:1px solid #702af8;border-radius:4px;padding:1px 4px;outline:none;text-align:right';
+    vl.replaceWith(inp);
+    inp.focus(); inp.select();
+    const confirm = () => {
+      const raw = parseFloat(inp.value);
+      if (!isNaN(raw)) {
+        // Extend range if needed
+        if (raw < parseFloat(el.min)) el.min = raw;
+        if (raw > parseFloat(el.max)) el.max = raw;
+        el.value = raw;
+        el.dispatchEvent(new Event('input'));
+      }
+      const newVl = document.createElement('b');
+      newVl.id = vid; newVl.textContent = isNaN(raw) ? cur : raw.toFixed(dec);
+      newVl.style.cursor = 'text'; newVl.title = 'Click to enter a value';
+      inp.replaceWith(newVl);
+      // Re-attach click listener to new element
+      sl._attachClick(newVl, el, vid, dec, cb);
+    };
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') confirm(); if (e.key === 'Escape') { inp.value = cur; confirm(); } });
+    inp.addEventListener('blur', confirm);
+  });
 }
+sl._attachClick = function(vl, el, vid, dec, cb) {
+  vl.addEventListener('click', () => {
+    const cur = el.value;
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.value = cur; inp.step = el.step || 'any';
+    inp.style.cssText = 'width:52px;font-size:11px;font-weight:600;color:#c4b5fd;background:#1a1b22;border:1px solid #702af8;border-radius:4px;padding:1px 4px;outline:none;text-align:right';
+    vl.replaceWith(inp);
+    inp.focus(); inp.select();
+    const confirm = () => {
+      const raw = parseFloat(inp.value);
+      if (!isNaN(raw)) {
+        if (raw < parseFloat(el.min)) el.min = raw;
+        if (raw > parseFloat(el.max)) el.max = raw;
+        el.value = raw;
+        el.dispatchEvent(new Event('input'));
+      }
+      const newVl = document.createElement('b');
+      newVl.id = vid; newVl.textContent = isNaN(raw) ? cur : raw.toFixed(dec);
+      newVl.style.cursor = 'text'; newVl.title = 'Click to enter a value';
+      inp.replaceWith(newVl);
+      sl._attachClick(newVl, el, vid, dec, cb);
+    };
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') confirm(); if (e.key === 'Escape') { inp.value = cur; confirm(); } });
+    inp.addEventListener('blur', confirm);
+  });
+};
 sl('tile','vtile',1, v => { ['map','normalMap','roughnessMap','aoMap','metalnessMap','emissiveMap','displacementMap'].forEach(k=>{if(mat[k])mat[k].repeat.set(v,v);}); requestRender(); });
 sl('nsc','vnsc',1, v => { if(mat.normalScale) mat.normalScale.set(v,v); requestRender(); });
 sl('aoi','vaoi',1, v => { mat.aoMapIntensity=v; mat.needsUpdate=true; requestRender(); });
+// Kelvin to RGB — maps color temperature to a THREE.Color
+function kelvinToColor(k) {
+  // Simplified Tanner Helland algorithm
+  k = Math.max(1000, Math.min(12000, k)) / 100;
+  let r, g, b;
+  r = k <= 66 ? 255 : 329.698727446 * Math.pow(k - 60, -0.1332047592);
+  if (k <= 66) g = 99.4708025861 * Math.log(k) - 161.1195681661;
+  else         g = 288.1221695283 * Math.pow(k - 60, -0.0755148492);
+  b = k >= 66 ? 255 : (k <= 19 ? 0 : 138.5177312231 * Math.log(k - 10) - 305.0447927307);
+  return new THREE.Color(Math.max(0,Math.min(255,r))/255, Math.max(0,Math.min(255,g))/255, Math.max(0,Math.min(255,b))/255);
+}
+
 sl('li','vli',1,   v => { dirLight.intensity=v; requestRender(); });
+sl('amb','vamb',1, v => { ambLight.intensity=v; requestRender(); });
+sl('kelvin','vkelvin',0, v => {
+  document.getElementById('vkelvin').textContent = Math.round(v) + 'K';
+  const col = kelvinToColor(v);
+  dirLight.color.copy(col);
+  // Tint ambient slightly (less saturated)
+  ambLight.color.set(new THREE.Color().lerpColors(col, new THREE.Color(1,1,1), 0.6));
+  requestRender();
+});
 sl('lx','vlx',0, () => setLight(+document.getElementById('lx').value, +document.getElementById('ly').value));
 sl('ly','vly',0, () => setLight(+document.getElementById('lx').value, +document.getElementById('ly').value));
 sl('hdri-intensity','vhdrii',1, v => { mat.envMapIntensity=v; mat.needsUpdate=true; requestRender(); });
@@ -490,7 +639,13 @@ sl('opacity-slider','vopacity',2, v => { mat.opacity=v; mat.transparent=v<1; mat
 sl('hgt-scale','vhgtscale',2, v => {
   autoEnableEye('eye-height');
   const eyeBtn = document.getElementById('eye-height');
-  if (mat.displacementMap && (!eyeBtn || eyeBtn.classList.contains('active'))) {
+  const active = !eyeBtn || eyeBtn.classList.contains('active');
+  if (mapOverrides['height']) {
+    // Uploaded map — directly set displacement
+    if (active) { mat.displacementScale = v; mat.displacementBias = -v / 2; mat.needsUpdate = true; requestRender(); }
+    return;
+  }
+  if (mat.displacementMap && active) {
     mat.displacementScale = v; mat.displacementBias = -v / 2;
     mat.needsUpdate = true; requestRender();
   }
@@ -632,6 +787,167 @@ const statusEl = document.getElementById('status');
 
 function setStatus(msg, cls) { statusEl.textContent = msg; statusEl.className = cls || ''; }
 
+// ── Input mode: image vs solid color ─────────────────────────────────
+function setInputMode(mode) {
+  document.getElementById('input-image-mode').style.display = mode === 'image' ? '' : 'none';
+  document.getElementById('input-color-mode').style.display = mode === 'color' ? '' : 'none';
+  const bImg = document.getElementById('btn-input-image');
+  const bCol = document.getElementById('btn-input-color');
+  if (mode === 'image') {
+    bImg.style.borderColor='#702af8'; bImg.style.background='rgba(112,42,248,.15)'; bImg.style.color='#a78bfa';
+    bCol.style.borderColor='#2d2f3d'; bCol.style.background='transparent'; bCol.style.color='#94a3b8';
+  } else {
+    bCol.style.borderColor='#702af8'; bCol.style.background='rgba(112,42,248,.15)'; bCol.style.color='#a78bfa';
+    bImg.style.borderColor='#2d2f3d'; bImg.style.background='transparent'; bImg.style.color='#94a3b8';
+    document.getElementById('btn-apply-color').disabled = false;
+  }
+}
+
+function setBaseColor(hex) {
+  document.getElementById('base-color-picker').value = hex;
+  document.getElementById('base-color-label').textContent = hex;
+}
+
+function applyBaseColor() {
+  const hex = document.getElementById('base-color-picker').value;
+  document.getElementById('base-color-label').textContent = hex;
+  // Parse hex → RGB
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  // Build a 512×512 solid-color ImageData
+  const size = 512;
+  const data = new Uint8ClampedArray(size * size * 4);
+  for (let i = 0; i < size * size; i++) {
+    data[i*4]=r; data[i*4+1]=g; data[i*4+2]=b; data[i*4+3]=255;
+  }
+  const imgData = new ImageData(data, size, size);
+  // Reuse the loadFile pipeline but feed it ImageData directly
+  currentFileName = 'color_' + hex.replace('#','');
+  document.getElementById('file-name').textContent = 'Solid color: ' + hex;
+  loadedImageData = imgData;
+  initPipeline(imgData);
+  genBtn.disabled = false;
+  setStatus('Ready — solid color ' + hex, '');
+  // Apply as albedo preview on sphere
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  c.getContext('2d').putImageData(imgData, 0, 0);
+  applyMaps({ albedo: c.toDataURL('image/png') });
+  document.getElementById('canvas-hint').style.display = 'none';
+  document.getElementById('btn-tile-test').style.display = '';
+  resetPills();
+
+  // Collapse picker — show compact swatch
+  document.getElementById('color-picker-expanded').style.display = 'none';
+  const collapsed = document.getElementById('color-picker-collapsed');
+  collapsed.style.display = 'flex';
+  document.getElementById('color-swatch-preview').style.background = hex;
+  document.getElementById('color-swatch-label').textContent = hex;
+}
+
+// Update label when color picker changes
+document.getElementById('base-color-picker')?.addEventListener('input', e => {
+  document.getElementById('base-color-label').textContent = e.target.value;
+});
+
+window.setInputMode  = setInputMode;
+window.setBaseColor  = setBaseColor;
+window.applyBaseColor = applyBaseColor;
+
+// ── Material Presets ──────────────────────────────────────────────────
+function _setSlider(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = value;
+  el.dispatchEvent(new Event('input'));
+}
+
+function applyPreset(preset) {
+  // Switch to solid color mode and apply the preset color
+  setInputMode('color');
+  document.getElementById('base-color-picker').value = preset.color;
+  document.getElementById('base-color-label').textContent = preset.color;
+  applyBaseColor();
+
+  // Set all generation sliders (after a tick so loadedImageData is ready)
+  setTimeout(() => {
+    _setSlider('ns',            preset.ns);
+    _setSlider('ra',            preset.ra);
+    _setSlider('rb',            preset.rb);
+    _setSlider('aogen',         preset.aogen);
+    _setSlider('hgt-scale',     preset.hgtScale);
+    _setSlider('hgt-contrast',  preset.hgtContrast);
+    _setSlider('met-threshold', preset.metThreshold);
+    _setSlider('met-contrast',  preset.metContrast);
+    _setSlider('emi-threshold', preset.emiThreshold);
+    _setSlider('emi-intensity', preset.emiIntensity);
+    _setSlider('opa-threshold', preset.opaThreshold);
+
+    // hgt-invert checkbox
+    const inv = document.getElementById('hgt-invert');
+    if (inv) inv.checked = preset.hgtInvert ?? false;
+
+    // Set eye toggles — turn on/off per preset
+    Object.entries(preset.maps).forEach(([key, on]) => {
+      const btn = document.getElementById('eye-' + key);
+      if (!btn) return;
+      const isActive = btn.classList.contains('active');
+      if (on && !isActive) btn.click();
+      else if (!on && isActive) btn.click();
+    });
+
+    // Lighting
+    _setSlider('li',     preset.li);
+    _setSlider('amb',    preset.amb);
+    _setSlider('kelvin', preset.kelvin);
+
+    // Highlight active preset button
+    document.querySelectorAll('.preset-btn').forEach(b => {
+      b.style.borderColor = b.dataset.preset === preset.name ? '#702af8' : '#2d2f3d';
+      b.style.background  = b.dataset.preset === preset.name ? 'rgba(112,42,248,.1)' : '#111218';
+    });
+  }, 50);
+}
+window.applyPreset = applyPreset;
+
+function togglePresetPanel() {
+  const panel = document.getElementById('preset-panel');
+  const isOpen = panel.style.display === 'flex';
+  panel.style.display = isOpen ? 'none' : 'flex';
+  document.getElementById('tb-preset-btn').classList.toggle('light-hdri', !isOpen);
+}
+window.togglePresetPanel = togglePresetPanel;
+
+// Close preset panel when clicking outside
+document.addEventListener('click', e => {
+  if (!e.target.closest('#preset-panel') && !e.target.closest('#tb-preset-btn')) {
+    const panel = document.getElementById('preset-panel');
+    if (panel) panel.style.display = 'none';
+    document.getElementById('tb-preset-btn')?.classList.remove('light-hdri');
+  }
+});
+
+// Build preset grid
+(function buildPresetGrid() {
+  const grid = document.getElementById('preset-grid');
+  if (!grid) return;
+  PRESETS.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn';
+    btn.dataset.preset = p.name;
+    btn.innerHTML = `
+      <div class="preset-swatch" style="background:${p.swatch}"></div>
+      <span class="preset-name">${p.name}</span>
+      <span class="preset-tags">${p.tags}</span>`;
+    btn.addEventListener('click', () => {
+      applyPreset(p);
+      // Close panel after selection
+      document.getElementById('preset-panel').style.display = 'none';
+      document.getElementById('tb-preset-btn')?.classList.remove('light-hdri');
+    });
+    grid.appendChild(btn);
+  });
+})();
+
 function loadFile(file) {
   currentFileName = file.name.replace(/\.[^.]+$/, '');
   if (thumbObjectURL) URL.revokeObjectURL(thumbObjectURL);
@@ -656,13 +972,16 @@ function loadFile(file) {
     document.getElementById('btn-seamless-only').style.display = smChecked ? '' : 'none';
     document.getElementById('btn-seamless-only').disabled = false;
 
-    // Apply raw texture to shader immediately, then kick off live preview
+    // Apply raw texture to shader immediately, then kick off live preview for normal group only
     const rawDataUrl = c.toDataURL('image/png');
     applyMaps({ albedo: rawDataUrl });
     document.getElementById('canvas-hint').style.display = 'none';
     document.getElementById('btn-tile-test').style.display = '';
-    // Auto-generate preview maps so 3D shader shows PBR on load
-    runLivePreview();
+    // Only auto-preview the normal/roughness/ao group if their sliders are non-zero
+    const anyBaseSlider = +document.getElementById('ns').value > 0
+      || +document.getElementById('ra').value > 0
+      || +document.getElementById('aogen').value > 0;
+    if (anyBaseSlider) runLivePreview('all');
   };
   img.onerror = () => setStatus('Failed to load image', 'err');
   img.src = thumbObjectURL;
@@ -747,8 +1066,8 @@ window.closeTileTest  = closeTileTest;
 window.toggleTileGuides = toggleTileGuides;
 
 // ── Pill helpers ──────────────────────────────────────────────────────
-const PILL_MAP  = { albedo:'pill-alb', normal:'pill-nrm', roughness:'pill-rgh', ao:'pill-ao', height:'pill-hgt', metalness:'pill-met', emissive:'pill-emi' };
-const PILL_SUFFIX = { albedo:'alb', normal:'nrm', roughness:'rgh', ao:'ao', height:'hgt', metalness:'met', emissive:'emi' };
+const PILL_MAP  = { albedo:'pill-alb', normal:'pill-nrm', roughness:'pill-rgh', ao:'pill-ao', height:'pill-hgt', metalness:'pill-met', emissive:'pill-emi', opacity:'pill-opa' };
+const PILL_SUFFIX = { albedo:'alb', normal:'nrm', roughness:'rgh', ao:'ao', height:'hgt', metalness:'met', emissive:'emi', opacity:'opa' };
 const STEP_PILL = {
   'Saving albedo…':            'pill-alb',
   'Generating normal map…':    'pill-nrm',
@@ -757,25 +1076,41 @@ const STEP_PILL = {
   'Generating height map…':    'pill-hgt',
   'Generating metalness map…': 'pill-met',
   'Generating emissive map…':  'pill-emi',
+  'Generating opacity map…':   'pill-opa',
 };
 function resetPills() {
   Object.values(PILL_MAP).forEach(id => {
     const el = document.getElementById(id);
     el.className = 'map-row';
     el.querySelector('.map-row-icon').textContent = '—';
+    el.style.borderColor = '';
   });
-  ['alb','nrm','rgh','ao','hgt','met','emi'].forEach(s => {
+  Object.values(PILL_SUFFIX).forEach(s => {
     ['btn-eye-','btn-regen-','btn-dl-'].forEach(p => {
       const b = document.getElementById(p+s);
       if (b) b.disabled = true;
     });
+  });
+  // Re-enable buttons for any active overrides
+  Object.keys(mapOverrides).forEach(key => {
+    const s = PILL_SUFFIX[key];
+    ['btn-eye-','btn-regen-','btn-dl-'].forEach(p => {
+      const b = document.getElementById(p+s);
+      if (b) b.disabled = false;
+    });
+    const el = document.getElementById(PILL_MAP[key]);
+    if (el) {
+      el.classList.add('done');
+      el.querySelector('.map-row-icon').textContent = '↑';
+      el.style.borderColor = '#92400e';
+    }
   });
 }
 function setPillWorking(id) {
   if (!id) return;
   const el = document.getElementById(id);
   el.classList.add('working');
-  el.querySelector('.map-row-icon').textContent = '💫';
+  el.querySelector('.map-row-icon').textContent = '…';
 }
 function setPillDone(id) {
   if (!id) return;
@@ -813,6 +1148,20 @@ genBtn.addEventListener('click', () => {
   const srcData = stackImageData || loadedImageData;
   const rgba = new Uint8ClampedArray(srcData.data);
 
+  // Helper to get pixels for a specific channel — override takes priority
+  const channelPixels = key => {
+    const ov = window._overridePixels?.[key];
+    return ov ? new Uint8ClampedArray(ov.data) : rgba;
+  };
+  const channelSize = key => {
+    const ov = window._overridePixels?.[key];
+    return ov ? { width: ov.width, height: ov.height } : { width: srcData.width, height: srcData.height };
+  };
+
+  // For channels with overrides, generate from override pixels (sliders still apply)
+  // For channels without overrides, use albedo source as before
+  // We run one worker per override-channel + one for the base channels
+  // Simple approach: the main worker uses albedo, then we patch in override-derived maps after
   worker.postMessage({
     rgba,
     width:               srcData.width,
@@ -828,12 +1177,14 @@ genBtn.addEventListener('click', () => {
     metalnessContrast:   +document.getElementById('met-contrast').value,
     emissiveThreshold:   +document.getElementById('emi-threshold').value,
     emissiveIntensity:   +document.getElementById('emi-intensity').value,
+    opacityThreshold:    +document.getElementById('opa-threshold').value,
     enableNormal:    document.getElementById('eye-normal')?.classList.contains('active') ?? true,
     enableRoughness: document.getElementById('eye-roughness')?.classList.contains('active') ?? true,
     enableAO:        document.getElementById('eye-ao')?.classList.contains('active') ?? true,
     enableHeight:    document.getElementById('eye-height')?.classList.contains('active') ?? false,
     enableMetalness: document.getElementById('eye-metalness')?.classList.contains('active') ?? false,
     enableEmissive:  document.getElementById('eye-emissive')?.classList.contains('active') ?? false,
+    enableOpacity:   document.getElementById('eye-opacity')?.classList.contains('active') ?? false,
     makeSeamlessFlag: document.getElementById('chk-seamless').checked,
     blendRatio:      +document.getElementById('blend-ratio').value,
     workSize:        +(document.getElementById('work-size')?.value || 512),
@@ -891,23 +1242,41 @@ genBtn.addEventListener('click', () => {
         maps.emissive = rgbaToDataURL(new Uint8ClampedArray(d.emissive), d.width, d.height);
         setPillDone(PILL_MAP['emissive']);
       }
-      lastMaps = maps;
-      // Store params used for this generation
-      const p = _currentParams();
-      Object.keys(mapParams).forEach(k => { mapParams[k] = p; });
-      applyMaps(maps);
-      populate2D(maps);
-      setStatus('Done — ' + currentFileName, 'ok');
-      document.getElementById('canvas-hint').style.display = 'none';
+      if (d.opacity && eyeOn('opacity')) {
+        maps.opacity = rgbaToDataURL(new Uint8ClampedArray(d.opacity), d.width, d.height);
+        setPillDone(PILL_MAP['opacity']);
+      }
+      // For channels with uploaded overrides, use them directly in maps — no re-processing.
+      // The slider adjustments for those channels only affect material properties, not the texture data.
+      const overrideKeys = Object.keys(mapOverrides);
+      overrideKeys.forEach(key => {
+        if (eyeOn(key)) {
+          maps[key] = mapOverrides[key];
+          if (!lastMaps) lastMaps = {};
+          lastMaps[key] = mapOverrides[key];
+          const el = document.getElementById(PILL_MAP[key]);
+          if (el) { el.classList.remove('working'); el.classList.add('done'); el.querySelector('.map-row-icon').textContent = '↑'; el.style.borderColor = '#92400e'; }
+          const s = PILL_SUFFIX[key];
+          ['btn-eye-','btn-regen-','btn-dl-'].forEach(p => { const b=document.getElementById(p+s); if(b) b.disabled=false; });
+        }
+      });
+      _finishGenerate(maps);
 
-      const dlBtn = document.getElementById('btn-dl-all');
-      dlBtn.disabled = false;
-      dlBtn.style.borderColor = '#702af8'; dlBtn.style.color = '#a78bfa';
-      dlBtn.onclick = () => downloadZip(maps, currentFileName);
-
-      setTimeout(() => { pWrap.style.display = 'none'; }, 2000);
-      genBtn.disabled = false;
-    }
+      function _finishGenerate(maps) {
+        const p = _currentParams();
+        Object.keys(mapParams).forEach(k => { mapParams[k] = p; });
+        applyMaps(maps);
+        populate2D(maps);
+        setStatus('Done — ' + currentFileName, 'ok');
+        document.getElementById('canvas-hint').style.display = 'none';
+        const dlBtn = document.getElementById('btn-dl-all');
+        dlBtn.disabled = false;
+        dlBtn.style.borderColor = '#702af8'; dlBtn.style.color = '#a78bfa';
+        dlBtn.onclick = () => downloadZip(maps, currentFileName);
+        setTimeout(() => { pWrap.style.display = 'none'; }, 2000);
+        genBtn.disabled = false;
+      }
+    } // end d.type === 'done'
   };
 });
 
@@ -939,9 +1308,11 @@ function runLivePreview(group = 'all', sliderId = null) {
   clearTimeout(_groupDebounce[group]);
   _groupDebounce[group] = setTimeout(() => {
     if (_groupWorker[group]) { _groupWorker[group].terminate(); _groupWorker[group] = null; }
-    // spinner is already shown by the slider's input handler
 
-    const srcData = stackImageData || loadedImageData;
+    // Use override pixels for this group's channel if available, else albedo
+    const overrideKey = group === 'all' ? null : group; // group name matches channel key
+    const overrideSrc = overrideKey && window._overridePixels?.[overrideKey];
+    const srcData = overrideSrc || stackImageData || loadedImageData;
     const rgba = new Uint8ClampedArray(srcData.data.buffer.slice(0));
     const w = new Worker(_previewWorkerURL);
     _groupWorker[group] = w;
@@ -961,12 +1332,14 @@ function runLivePreview(group = 'all', sliderId = null) {
       metalnessContrast:   +document.getElementById('met-contrast').value,
       emissiveThreshold:   +document.getElementById('emi-threshold').value,
       emissiveIntensity:   +document.getElementById('emi-intensity').value,
+      opacityThreshold:    +document.getElementById('opa-threshold').value,
       enableNormal:    group === 'normal'    || group === 'all',
       enableRoughness: group === 'roughness' || group === 'all',
       enableAO:        group === 'ao'        || group === 'all',
       enableHeight:    group === 'height'    || (group === 'all' && +document.getElementById('hgt-scale').value > 0),
       enableMetalness: group === 'metalness' || (group === 'all' && +document.getElementById('met-contrast').value > 1),
       enableEmissive:  group === 'emissive'  || (group === 'all' && +document.getElementById('emi-intensity').value > 0),
+      enableOpacity:   group === 'opacity'   || (group === 'all' && +document.getElementById('opa-threshold').value < 1),
       makeSeamlessFlag: false, blendRatio: 0.25, workSize: 512,
     }, [rgba.buffer]);
 
@@ -996,7 +1369,9 @@ function runLivePreview(group = 'all', sliderId = null) {
       // Build only the entries for the maps this group produces
       const texEntries = [];
       if (group === 'all' || group === 'normal') {
-        if (d.albedo) texEntries.push(['albedo', d.albedo, THREE.SRGBColorSpace]);
+        // Only update albedo if we used the actual albedo as source (not an override's pixels)
+        const overrideSrcUsed = group !== 'all' && window._overridePixels?.[group];
+        if (d.albedo && !overrideSrcUsed) texEntries.push(['albedo', d.albedo, THREE.SRGBColorSpace]);
         if (d.normal) texEntries.push(['normal', d.normal, null]);
       }
       if (group === 'all' || group === 'roughness') {
@@ -1008,6 +1383,7 @@ function runLivePreview(group = 'all', sliderId = null) {
       if ((group === 'all' || group === 'height')    && d.heightMap) texEntries.push(['height',    d.heightMap, null]);
       if ((group === 'all' || group === 'metalness') && d.metalness) texEntries.push(['metalness', d.metalness, null]);
       if ((group === 'all' || group === 'emissive')  && d.emissive)  texEntries.push(['emissive',  d.emissive,  null]);
+      if ((group === 'all' || group === 'opacity')   && d.opacity)   texEntries.push(['opacity',   d.opacity,   null]);
 
       // Always hide spinner immediately on done, before async texture upload
       if (sliderId) setSpinner(sliderId, false);
@@ -1021,9 +1397,11 @@ function runLivePreview(group = 'all', sliderId = null) {
           const tex = textures[i];
           if (loadedMaps[key]?.isTexture) loadedMaps[key].dispose();
           loadedMaps[key] = tex;
+          // Only bind to material if eye is explicitly active
           const eyeBtn = document.getElementById('eye-' + key);
-          if (!eyeBtn || eyeBtn.classList.contains('active')) {
-            if (propMap[key]) mat[propMap[key]] = tex;
+          const eyeActive = !eyeBtn || eyeBtn.classList.contains('active');
+          if (eyeActive && propMap[key]) {
+            mat[propMap[key]] = tex;
           }
         });
 
@@ -1036,14 +1414,34 @@ function runLivePreview(group = 'all', sliderId = null) {
         if (group === 'all' || group === 'ao') {
           mat.aoMapIntensity = parseFloat(document.getElementById('aoi').value) || 0.6;
         }
+        // Only set emissive scalars if eye-emissive is explicitly on
         if ((group === 'all' || group === 'emissive') && d.emissive) {
-          mat.emissive = new THREE.Color(0xffffff); mat.emissiveIntensity = 1.0;
+          const eyeEmi = document.getElementById('eye-emissive');
+          if (eyeEmi?.classList.contains('active')) {
+            mat.emissive = new THREE.Color(0xffffff);
+            mat.emissiveIntensity = parseFloat(document.getElementById('emi-intensity').value) || 1.0;
+          }
         }
+        // Only set displacement if eye-height is explicitly on
         if ((group === 'all' || group === 'height') && d.heightMap) {
-          const sv = parseFloat(document.getElementById('hgt-scale').value) || 0;
-          mat.displacementScale = sv; mat.displacementBias = -sv / 2;
+          const eyeHgt = document.getElementById('eye-height');
+          if (eyeHgt?.classList.contains('active')) {
+            const sv = parseFloat(document.getElementById('hgt-scale').value) || 0;
+            mat.displacementScale = sv; mat.displacementBias = -sv / 2;
+          }
         }
-        if ((group === 'all' || group === 'metalness') && d.metalness) mat.metalness = 1.0;
+        // Only set metalness scalar if eye-metalness is explicitly on
+        if ((group === 'all' || group === 'metalness') && d.metalness) {
+          const eyeMet = document.getElementById('eye-metalness');
+          if (eyeMet?.classList.contains('active')) mat.metalness = 1.0;
+        }
+        // Only enable transparency if eye-opacity is explicitly on
+        if ((group === 'all' || group === 'opacity') && d.opacity) {
+          const eyeOpa = document.getElementById('eye-opacity');
+          if (eyeOpa?.classList.contains('active')) {
+            mat.transparent = true; mat.alphaTest = 0.01;
+          }
+        }
 
         mat.needsUpdate = true;
         requestRender();
@@ -1054,6 +1452,148 @@ function runLivePreview(group = 'all', sliderId = null) {
     };
   }, 300);
 }
+
+// ── Map upload overrides ──────────────────────────────────────────────
+// Tracks which channels have user-uploaded maps (bypasses generation)
+const mapOverrides = {}; // key → dataUrl
+
+function loadMapOverride(key, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const dataUrl = ev.target.result;
+    mapOverrides[key] = dataUrl;
+
+    // Decode to ImageData for worker-based slider processing
+    if (!window._overridePixels) window._overridePixels = {};
+    const _img = new Image();
+    _img.onload = () => {
+      const _c = document.createElement('canvas');
+      _c.width = _img.width; _c.height = _img.height;
+      _c.getContext('2d').drawImage(_img, 0, 0);
+      window._overridePixels[key] = _c.getContext('2d').getImageData(0, 0, _c.width, _c.height);
+    };
+    _img.src = dataUrl;
+
+    // Store in lastMaps so preview/download work
+    if (!lastMaps) lastMaps = {};
+    lastMaps[key] = dataUrl;
+
+    // Apply to shader immediately
+    const texLoader = new THREE.TextureLoader();
+    texLoader.load(dataUrl, tex => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(parseFloat(document.getElementById('tile').value) || 1,
+                     parseFloat(document.getElementById('tile').value) || 1);
+      if (key === 'albedo') tex.colorSpace = THREE.SRGBColorSpace;
+      if (loadedMaps[key]?.isTexture) loadedMaps[key].dispose();
+      loadedMaps[key] = tex;
+      const eyeBtn = document.getElementById('eye-' + key);
+      if (!eyeBtn || eyeBtn.classList.contains('active')) {
+        if (propMap[key]) mat[propMap[key]] = tex;
+        if (key === 'emissive') { mat.emissive = new THREE.Color(0xffffff); mat.emissiveIntensity = 1.0; }
+        if (key === 'metalness') mat.metalness = 1.0;
+        if (key === 'opacity') { mat.transparent = true; mat.alphaTest = 0.01; }
+        if (key === 'height') {
+          const sv = parseFloat(document.getElementById('hgt-scale').value) || 0;
+          mat.displacementScale = sv; mat.displacementBias = -sv / 2;
+        }
+        mat.needsUpdate = true; requestRender();
+      }
+    });
+
+    // Mark pill as uploaded (↑) — amber border
+    const pillId = PILL_MAP[key];
+    if (pillId) {
+      const el = document.getElementById(pillId);
+      el.classList.remove('working'); el.classList.add('done');
+      el.querySelector('.map-row-icon').textContent = '↑';
+      el.style.borderColor = '#92400e';
+      const s = PILL_SUFFIX[key];
+      ['btn-eye-','btn-regen-','btn-dl-'].forEach(p => {
+        const b = document.getElementById(p + s);
+        if (b) b.disabled = false;
+      });
+    }
+
+    // Show clear button on card
+    const clearBtn = document.getElementById('clear-' + key);
+    if (clearBtn) clearBtn.classList.add('visible');
+
+    // Update slider labels to reflect intensity-mode when override is active
+    const labelMap = {
+      normal:    ['vns',    'Bump Intensity'],
+      roughness: ['vra',    'Roughness Amount'],
+      ao:        ['vaogen', 'AO Strength'],
+      height:    ['vhgtscale', 'Displacement'],
+      metalness: ['vmetth', 'Metalness Amount'],
+      emissive:  ['vemiint','Glow Intensity'],
+      opacity:   ['vopath', 'Opacity Cutoff'],
+    };
+    if (labelMap[key]) {
+      const card = document.getElementById('card-gen-' + key);
+      if (card) {
+        const rows = card.querySelectorAll('.ctrl-row span:first-child');
+        if (rows[0]) rows[0].dataset.origLabel = rows[0].dataset.origLabel || rows[0].textContent;
+        // Only relabel the primary slider row
+        const primaryRow = labelMap[key];
+        const lbl = card.querySelector('.ctrl-row span:first-child');
+        if (lbl) { lbl.dataset.origLabel = lbl.dataset.origLabel || lbl.textContent; lbl.textContent = primaryRow[1]; }
+      }
+    }
+
+    // Reset file input so same file can be re-selected
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearMapOverride(key) {
+  delete mapOverrides[key];
+  if (window._overridePixels) delete window._overridePixels[key];
+
+  // Remove from lastMaps so it won't go in ZIP
+  if (lastMaps) delete lastMaps[key];
+
+  // Remove from shader
+  const prop = propMap[key];
+  if (prop && mat[prop]?.isTexture) { mat[prop].dispose(); mat[prop] = null; }
+  if (loadedMaps[key]?.isTexture) { loadedMaps[key].dispose(); delete loadedMaps[key]; }
+  if (key === 'emissive') { mat.emissive = new THREE.Color(0x000000); mat.emissiveIntensity = 0; }
+  if (key === 'metalness') mat.metalness = 0;
+  if (key === 'opacity') { mat.alphaMap = null; mat.transparent = false; mat.alphaTest = 0; }
+  if (key === 'height') { mat.displacementScale = 0; mat.displacementBias = 0; }
+  mat.needsUpdate = true; requestRender();
+
+  // Reset pill
+  const pillId = PILL_MAP[key];
+  if (pillId) {
+    const el = document.getElementById(pillId);
+    el.className = 'map-row';
+    el.querySelector('.map-row-icon').textContent = '—';
+    el.style.borderColor = '';
+    const s = PILL_SUFFIX[key];
+    ['btn-eye-','btn-regen-','btn-dl-'].forEach(p => {
+      const b = document.getElementById(p+s);
+      if (b) b.disabled = true;
+    });
+  }
+
+  // Remove clear button from card
+  const clearBtn = document.getElementById('clear-' + key);
+  if (clearBtn) clearBtn.classList.remove('visible');
+
+  // Restore original slider labels
+  const card = document.getElementById('card-gen-' + key);
+  if (card) {
+    const lbl = card.querySelector('.ctrl-row span:first-child');
+    if (lbl?.dataset.origLabel) lbl.textContent = lbl.dataset.origLabel;
+  }
+}
+
+window.loadMapOverride  = loadMapOverride;
+window.clearMapOverride = clearMapOverride;
 
 // ── Per-map eye toggles ───────────────────────────────────────────────
 function toggleMapEye(key, btn) {
@@ -1068,6 +1608,7 @@ function toggleMapEye(key, btn) {
       mat[prop] = loadedMaps[key];
       if (key === 'emissive') { mat.emissive = new THREE.Color(0xffffff); mat.emissiveIntensity = 1.0; }
       if (key === 'metalness') mat.metalness = 1.0;
+      if (key === 'opacity') { mat.transparent = true; mat.alphaTest = 0.01; }
       if (key === 'height') {
         const sv = parseFloat(document.getElementById('hgt-scale').value) || 0;
         mat.displacementScale = sv; mat.displacementBias = -sv / 2;
@@ -1078,6 +1619,7 @@ function toggleMapEye(key, btn) {
     mat[prop] = null;
     if (key === 'emissive') { mat.emissive = new THREE.Color(0x000000); mat.emissiveIntensity = 0; }
     if (key === 'metalness') mat.metalness = 0;
+    if (key === 'opacity') { mat.transparent = false; mat.alphaTest = 0; }
     if (key === 'height') { mat.displacementScale = 0; mat.displacementBias = 0; }
     mat.needsUpdate = true; requestRender();
   }
@@ -1107,6 +1649,7 @@ const _sliderGroup = {
   'hgt-scale': 'height',
   'met-threshold': 'metalness', 'met-contrast': 'metalness',
   'emi-threshold': 'emissive',  'emi-intensity': 'emissive',
+  'opa-threshold': 'opacity',
 };
 
 // Maps each slider group to its eye button ID
@@ -1117,6 +1660,51 @@ const _groupEye = {
   'height':    'eye-height',
   'metalness': 'eye-metalness',
   'emissive':  'eye-emissive',
+  'opacity':   'eye-opacity',
+};
+
+// Maps each group to the material property its slider directly controls (for override mode)
+const _groupDirectProp = {
+  normal:    (v) => { mat.normalScale?.set(parseFloat(document.getElementById('nsc').value)||1, parseFloat(document.getElementById('nsc').value)||1); mat.needsUpdate=true; requestRender(); },
+  roughness: ()  => { mat.needsUpdate=true; requestRender(); }, // roughness map texture stays, no scalar to update
+  ao:        ()  => { mat.aoMapIntensity = parseFloat(document.getElementById('aoi').value)||0.6; mat.needsUpdate=true; requestRender(); },
+  height:    (v) => { mat.displacementScale=v; mat.displacementBias=-v/2; mat.needsUpdate=true; requestRender(); },
+  metalness: ()  => { mat.needsUpdate=true; requestRender(); },
+  emissive:  (v) => { mat.emissiveIntensity = parseFloat(document.getElementById('emi-intensity').value)||1; mat.needsUpdate=true; requestRender(); },
+  opacity:   ()  => { mat.needsUpdate=true; requestRender(); },
+};
+
+// Maps each group to its direct Three.js material update when an override is loaded
+const _groupDirectUpdate = {
+  normal:    () => {
+    const v = parseFloat(document.getElementById('ns').value) / 10; // 0-30 → 0-3
+    mat.normalScale?.set(v, v); mat.needsUpdate = true; requestRender();
+  },
+  roughness: () => {
+    const v = parseFloat(document.getElementById('ra').value); // 0-2 direct
+    mat.roughness = v; mat.needsUpdate = true; requestRender();
+  },
+  ao:        () => {
+    const v = parseFloat(document.getElementById('aogen').value);
+    mat.aoMapIntensity = v; mat.needsUpdate = true; requestRender();
+  },
+  height:    () => {
+    const v = parseFloat(document.getElementById('hgt-scale').value);
+    mat.displacementScale = v; mat.displacementBias = -v / 2; mat.needsUpdate = true; requestRender();
+  },
+  metalness: () => {
+    const v = parseFloat(document.getElementById('met-threshold').value); // repurpose as intensity 0-1
+    mat.metalness = 1.0 - v; // threshold=0 → full metallic, threshold=1 → no metallic
+    mat.needsUpdate = true; requestRender();
+  },
+  emissive:  () => {
+    const v = parseFloat(document.getElementById('emi-intensity').value);
+    mat.emissiveIntensity = v; mat.needsUpdate = true; requestRender();
+  },
+  opacity:   () => {
+    const v = parseFloat(document.getElementById('opa-threshold').value);
+    mat.alphaTest = v; mat.needsUpdate = true; requestRender();
+  },
 };
 
 // ── Slider wiring — per slider spinner, per group worker ──────────────
@@ -1125,8 +1713,14 @@ function sliderGroup(entries, group) {
     const el = document.getElementById(id), vl = document.getElementById(vid);
     if (!el || !vl) return;
     el.addEventListener('input', () => {
-      vl.textContent = parseFloat(el.value).toFixed(dec);
+      const v = parseFloat(el.value);
+      vl.textContent = v.toFixed(dec);
       if (_groupEye[group]) autoEnableEye(_groupEye[group]);
+      // If this channel has an uploaded map, update material property directly — no re-processing
+      if (mapOverrides[group] && _groupDirectUpdate[group]) {
+        _groupDirectUpdate[group]();
+        return;
+      }
       setSpinner(id, true);
       runLivePreview(group, id);
     });
@@ -1139,6 +1733,7 @@ sliderGroup([['aogen','vaogen',1]], 'ao');
 sliderGroup([['met-threshold','vmetth',2], ['met-contrast','vmetcon',1]], 'metalness');
 sliderGroup([['emi-threshold','vemith',2], ['emi-intensity','vemiint',1]], 'emissive');
 sliderGroup([['hgt-contrast','vhgtcontrast',1]], 'height');
+sliderGroup([['opa-threshold','vopath',2]], 'opacity');
 
 // Invert toggle — re-runs height worker
 document.getElementById('hgt-invert')?.addEventListener('change', () => {
@@ -1246,6 +1841,7 @@ function _currentParams() {
     metalnessContrast:  +document.getElementById('met-contrast').value,
     emissiveThreshold:  +document.getElementById('emi-threshold').value,
     emissiveIntensity:  +document.getElementById('emi-intensity').value,
+    opacityThreshold:   +document.getElementById('opa-threshold').value,
   };
 }
 
@@ -1271,8 +1867,9 @@ function regenMap(key) {
     metalnessContrast:  +document.getElementById('met-contrast').value,
     emissiveThreshold:  +document.getElementById('emi-threshold').value,
     emissiveIntensity:  +document.getElementById('emi-intensity').value,
+    opacityThreshold:   +document.getElementById('opa-threshold').value,
     enableNormal: true, enableRoughness: true, enableAO: true,
-    enableHeight: true, enableMetalness: true, enableEmissive: true,
+    enableHeight: true, enableMetalness: true, enableEmissive: true, enableOpacity: true,
     makeSeamlessFlag: false, blendRatio: 0.25, workSize: 512,
   }, [rgba.buffer]);
   w.onmessage = e => {
@@ -1318,6 +1915,7 @@ const MAP_META = {
   height:    { label: 'Height Map',             desc: 'Luminance-based surface displacement',          color: '#a78bfa' },
   metalness: { label: 'Metalness Map',          desc: 'Metallic vs. dielectric (0=non-metal, 1=metal)',color: '#94a3b8' },
   emissive:  { label: 'Emissive Map',           desc: 'Self-illuminated bright regions (glow)',        color: '#f87171' },
+  opacity:   { label: 'Opacity Map',            desc: 'Transparency mask (0=invisible, 1=solid)',      color: '#cbd5e1' },
 };
 
 function _mpApplyTransform() {
@@ -1354,6 +1952,7 @@ function openMapPreview(key) {
   if (key === 'height')    chips.push(`<span class="mp-info-chip">Scale <b>${p.heightScale ?? '?'}</b></span>`, `<span class="mp-info-chip">Contrast <b>${p.heightContrast ?? '?'}</b></span>`);
   if (key === 'metalness') chips.push(`<span class="mp-info-chip">Threshold <b>${p.metalnessThreshold ?? '?'}</b></span>`, `<span class="mp-info-chip">Contrast <b>${p.metalnessContrast ?? '?'}</b></span>`);
   if (key === 'emissive')  chips.push(`<span class="mp-info-chip">Threshold <b>${p.emissiveThreshold ?? '?'}</b></span>`, `<span class="mp-info-chip">Intensity <b>${p.emissiveIntensity ?? '?'}</b></span>`);
+  if (key === 'opacity')   chips.push(`<span class="mp-info-chip">Threshold <b>${p.opacityThreshold ?? '?'}</b></span>`);
   _mpInfo.innerHTML = `
     <div class="mp-info-label" style="color:${meta.color}">${meta.label}</div>
     <div class="mp-info-desc">${meta.desc}</div>
