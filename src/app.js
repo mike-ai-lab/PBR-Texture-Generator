@@ -17,21 +17,18 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled = false;
 wrap.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.12;
+controls.enableDamping = false;
+controls.rotateSpeed = 0.8;
 controls.minDistance = 1;
 controls.maxDistance = 20;
 
 scene.add(new THREE.AmbientLight(0xffffff, 1.2));
 const dirLight = new THREE.DirectionalLight(0xffffff, 3.0);
-dirLight.castShadow = true;
-dirLight.shadow.mapSize.set(2048, 2048);
-dirLight.shadow.bias = -0.001;
+dirLight.position.set(5, 8, 5);
 scene.add(dirLight);
 const rim  = new THREE.DirectionalLight(0xddeeff, 1.0); rim.position.set(-5, 5, -5); scene.add(rim);
 const fill = new THREE.DirectionalLight(0xffffff, 0.6);  fill.position.set(0, -5, 3); scene.add(fill);
@@ -88,7 +85,7 @@ const hdriBase = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/';
 let currentHdr = null, lightingMode = 'manual';
 
 const mat = new THREE.MeshStandardMaterial({
-  color: 0xffffff, roughness: 0.6, metalness: 0.0,
+  color: 0xffffff, roughness: 1.0, metalness: 0.0,
   side: THREE.DoubleSide, transparent: true, opacity: 1.0
 });
 let mesh = null;
@@ -100,24 +97,25 @@ const propMap = {
   ao:        'aoMap',
   metalness: 'metalnessMap',
   emissive:  'emissiveMap',
-  // height → displacementMap is optional (needs extra geometry subdivisions), skip for now
+  height:    'displacementMap',
 };
 
 function buildShape(type) {
   if (mesh) { scene.remove(mesh); mesh.geometry.dispose(); }
+  const subs = parseInt(document.getElementById('geo-subs')?.value || 64);
   let geo;
-  if      (type==='sphere')   geo = new THREE.SphereGeometry(2, 64, 64);
-  else if (type==='cube')     geo = new THREE.BoxGeometry(3, 3, 3, 32, 32, 32);
-  else if (type==='cylinder') geo = new THREE.CylinderGeometry(1.5, 1.5, 3, 64, 16);
-  else { geo = new THREE.PlaneGeometry(6, 6, 64, 64); geo.rotateX(-Math.PI/2); }
+  if      (type==='sphere')   geo = new THREE.SphereGeometry(2, subs, subs);
+  else if (type==='cube')     geo = new THREE.BoxGeometry(3, 3, 3, subs, subs, subs);
+  else if (type==='cylinder') geo = new THREE.CylinderGeometry(1.5, 1.5, 3, subs, subs);
+  else { geo = new THREE.PlaneGeometry(6, 6, subs, subs); geo.rotateX(-Math.PI/2); }
   if (!geo.attributes.uv2)
     geo.setAttribute('uv2', new THREE.BufferAttribute(geo.attributes.uv.array.slice(), 2));
   mesh = new THREE.Mesh(geo, mat);
-  mesh.castShadow = mesh.receiveShadow = true;
   scene.add(mesh);
   camera.position.set(0, type==='plane'?4:2, type==='plane'?4:6);
   controls.target.set(0,0,0); controls.update(); requestRender();
 }
+let _currentShape = 'sphere';
 buildShape('sphere');
 
 function setLight(x, y) {
@@ -189,14 +187,28 @@ function applyMaps(maps) {
       const t = parseFloat(document.getElementById('tile').value) || 1;
       tex.repeat.set(t, t);
       loadedMaps[key] = tex;
-      const tog = document.getElementById('tog-'+key);
-      if (!tog || tog.classList.contains('active')) {
+      const eyeBtn = document.getElementById('eye-' + key);
+      if (!eyeBtn || eyeBtn.classList.contains('active')) {
         mat[propMap[key]] = tex;
         if (key === 'normal') {
           const nsc = parseFloat(document.getElementById('nsc').value) || 1;
           mat.normalScale?.set(nsc, nsc);
         }
         if (key === 'ao') mat.aoMapIntensity = parseFloat(document.getElementById('aoi').value) || 0.6;
+        if (key === 'emissive') {
+          const eyeBtn = document.getElementById('eye-emissive');
+          if (!eyeBtn || eyeBtn.classList.contains('active')) {
+            mat.emissive = new THREE.Color(0xffffff); mat.emissiveIntensity = 1.0;
+          }
+        }
+        if (key === 'height') {
+          const sv = parseFloat(document.getElementById('hgt-scale').value) || 0;
+          mat.displacementScale = sv; mat.displacementBias = -sv / 2;
+        }
+        if (key === 'metalness') {
+          const eyeBtn = document.getElementById('eye-metalness');
+          if (!eyeBtn || eyeBtn.classList.contains('active')) mat.metalness = 1.0;
+        }
       }
       mat.needsUpdate = true; requestRender(4);
       if (++loaded === keys.length) { mat.needsUpdate = true; requestRender(8); }
@@ -246,37 +258,107 @@ function populate2D(maps) {
   }
 }
 
-// ── Download All as ZIP (JSZip via CDN) ──────────────────────────────
-async function downloadZip(maps, name) {
-  const { default: JSZip } = await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm');
-  const zip = new JSZip();
-  for (const [key, dataUrl] of Object.entries(maps)) {
-    const b64 = dataUrl.split(',')[1];
-    zip.file(`${name}_${key}.png`, b64, { base64: true });
+// ── Download All as ZIP (pure JS, no CDN dependency) ─────────────────
+// Minimal ZIP builder — stores files uncompressed (STORE method)
+function _buildZip(files) {
+  // files: [{name, data: Uint8Array}]
+  const encoder = new TextEncoder();
+  const localHeaders = [];
+  const centralDir   = [];
+  let offset = 0;
+
+  function u16(n) { return [n & 0xff, (n >> 8) & 0xff]; }
+  function u32(n) { return [n & 0xff, (n>>8)&0xff, (n>>16)&0xff, (n>>24)&0xff]; }
+
+  // CRC-32 table
+  const crcTable = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    crcTable[i] = c;
   }
-  const blob = await zip.generateAsync({ type: 'blob' });
+  function crc32(buf) {
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < buf.length; i++) crc = (crc >>> 8) ^ crcTable[(crc ^ buf[i]) & 0xff];
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  const parts = [];
+  for (const f of files) {
+    const nameBytes = encoder.encode(f.name);
+    const crc  = crc32(f.data);
+    const size = f.data.length;
+    const lh = new Uint8Array([
+      0x50,0x4b,0x03,0x04, // local file header sig
+      20,0,                 // version needed
+      0,0,                  // flags
+      0,0,                  // compression (STORE)
+      0,0,0,0,              // mod time/date
+      ...u32(crc), ...u32(size), ...u32(size),
+      ...u16(nameBytes.length), 0,0, // fname len, extra len
+      ...nameBytes,
+    ]);
+    localHeaders.push({ nameBytes, crc, size, offset });
+    parts.push(lh, f.data);
+    offset += lh.length + size;
+
+    const cd = new Uint8Array([
+      0x50,0x4b,0x01,0x02,  // central dir sig
+      20,0, 20,0,            // versions
+      0,0, 0,0,              // flags, compression
+      0,0,0,0,               // mod time/date
+      ...u32(crc), ...u32(size), ...u32(size),
+      ...u16(nameBytes.length), 0,0, 0,0, 0,0, 0,0, 0,0,0,0,
+      ...u32(localHeaders[localHeaders.length-1].offset),
+      ...nameBytes,
+    ]);
+    centralDir.push(cd);
+  }
+
+  const cdSize   = centralDir.reduce((s, b) => s + b.length, 0);
+  const cdOffset = offset;
+  const eocd = new Uint8Array([
+    0x50,0x4b,0x05,0x06, 0,0, 0,0,
+    ...u16(files.length), ...u16(files.length),
+    ...u32(cdSize), ...u32(cdOffset),
+    0,0,
+  ]);
+
+  const totalLen = parts.reduce((s,b) => s+b.length, 0) + cdSize + eocd.length;
+  const out = new Uint8Array(totalLen);
+  let pos = 0;
+  for (const b of [...parts, ...centralDir, eocd]) { out.set(b, pos); pos += b.length; }
+  return out;
+}
+
+async function downloadZip(maps, name) {
+  const files = [];
+  for (const [key, dataUrl] of Object.entries(maps)) {
+    // Convert data URL to Uint8Array
+    const b64 = dataUrl.split(',')[1];
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    files.push({ name: `${name}_${key}.png`, data: arr });
+  }
+  const zipData = _buildZip(files);
+  const blob = new Blob([zipData], { type: 'application/zip' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `${name}_pbr_maps.zip`;
   a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
 }
 
-// ── Map channel toggles ───────────────────────────────────────────────
-document.querySelectorAll('.map-toggle').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const key = btn.dataset.map;
-    const active = btn.classList.toggle('active');
-    if (active) { if (loadedMaps[key]) { mat[propMap[key]] = loadedMaps[key]; mat.needsUpdate=true; requestRender(4); } }
-    else         { mat[propMap[key]] = null; mat.needsUpdate=true; requestRender(4); }
-  });
-});
+// ── Map channel toggles — now handled by eye buttons in each card ─────
+// (old .map-toggle buttons removed; toggleMapEye() handles this)
 
 function sl(id, vid, dec, cb) {
   const el = document.getElementById(id), vl = document.getElementById(vid);
   if (!el||!vl) return;
   el.addEventListener('input', () => { const v=parseFloat(el.value); vl.textContent=v.toFixed(dec); cb(v); });
 }
-sl('tile','vtile',1, v => { ['map','normalMap','roughnessMap','aoMap','metalnessMap','emissiveMap'].forEach(k=>{if(mat[k])mat[k].repeat.set(v,v);}); requestRender(); });
+sl('tile','vtile',1, v => { ['map','normalMap','roughnessMap','aoMap','metalnessMap','emissiveMap','displacementMap'].forEach(k=>{if(mat[k])mat[k].repeat.set(v,v);}); requestRender(); });
 sl('nsc','vnsc',1, v => { if(mat.normalScale) mat.normalScale.set(v,v); requestRender(); });
 sl('aoi','vaoi',1, v => { mat.aoMapIntensity=v; mat.needsUpdate=true; requestRender(); });
 sl('li','vli',1,   v => { dirLight.intensity=v; requestRender(); });
@@ -285,6 +367,18 @@ sl('ly','vly',0, () => setLight(+document.getElementById('lx').value, +document.
 sl('hdri-intensity','vhdrii',1, v => { mat.envMapIntensity=v; mat.needsUpdate=true; requestRender(); });
 sl('exposure','vexp',1, v => { renderer.toneMappingExposure=v; requestRender(); });
 sl('opacity-slider','vopacity',2, v => { mat.opacity=v; mat.transparent=v<1; mat.needsUpdate=true; requestRender(4); });
+sl('hgt-scale','vhgtscale',2, v => {
+  autoEnableEye('eye-height');
+  const eyeBtn = document.getElementById('eye-height');
+  if (mat.displacementMap && (!eyeBtn || eyeBtn.classList.contains('active'))) {
+    mat.displacementScale = v; mat.displacementBias = -v / 2;
+    mat.needsUpdate = true; requestRender();
+  }
+  setSpinner('hgt-scale', true);
+  runLivePreview('height', 'hgt-scale');
+});
+// Subdivisions — rebuilds geometry so displacement has enough vertices
+sl('geo-subs','vsubs',0, () => buildShape(_currentShape));
 
 // ── Context menus ─────────────────────────────────────────────────────
 const SHAPE_ICONS = {
@@ -337,6 +431,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllCtx(
 ctxShape.querySelectorAll('.ctx-item').forEach(item => {
   item.addEventListener('click', () => {
     const shape = item.dataset.shape;
+    _currentShape = shape;
     buildShape(shape);
     ctxShape.querySelectorAll('.ctx-item').forEach(i => i.classList.remove('active'));
     item.classList.add('active');
@@ -606,14 +701,16 @@ genBtn.addEventListener('click', () => {
     roughAlpha:          +document.getElementById('ra').value,
     roughBeta:           +document.getElementById('rb').value,
     aoAlpha:             +document.getElementById('aogen').value,
-    heightScale:         +document.getElementById('hgt-scale').value,
+    heightScale:        +document.getElementById('hgt-scale').value,
+    heightContrast:      +document.getElementById('hgt-contrast').value,
+    heightInvert:        document.getElementById('hgt-invert').checked,
     metalnessThreshold:  +document.getElementById('met-threshold').value,
     metalnessContrast:   +document.getElementById('met-contrast').value,
     emissiveThreshold:   +document.getElementById('emi-threshold').value,
     emissiveIntensity:   +document.getElementById('emi-intensity').value,
-    enableHeight:    true,
-    enableMetalness: true,
-    enableEmissive:  true,
+    enableHeight:    document.getElementById('eye-height')?.classList.contains('active') ?? false,
+    enableMetalness: document.getElementById('eye-metalness')?.classList.contains('active') ?? false,
+    enableEmissive:  document.getElementById('eye-emissive')?.classList.contains('active') ?? false,
     makeSeamlessFlag: document.getElementById('chk-seamless').checked,
     blendRatio:      +document.getElementById('blend-ratio').value,
     workSize:        +(document.getElementById('work-size')?.value || 512),
@@ -634,19 +731,43 @@ genBtn.addEventListener('click', () => {
 
     if (d.type === 'done') {
       if (lastPill) setPillDone(lastPill);
-      Object.values(PILL_MAP).forEach(id => setPillDone(id));
       pBar.style.width = '100%';
       pLbl.textContent = '✔ Complete';
 
-      const maps = {
-        albedo:    rgbaToDataURL(new Uint8ClampedArray(d.albedo),    d.width, d.height),
-        normal:    rgbaToDataURL(new Uint8ClampedArray(d.normal),    d.width, d.height),
-        roughness: rgbaToDataURL(new Uint8ClampedArray(d.roughness), d.width, d.height),
-        ao:        rgbaToDataURL(new Uint8ClampedArray(d.ao),        d.width, d.height),
-        ...(d.heightMap  && { height:    rgbaToDataURL(new Uint8ClampedArray(d.heightMap),  d.width, d.height) }),
-        ...(d.metalness  && { metalness: rgbaToDataURL(new Uint8ClampedArray(d.metalness),  d.width, d.height) }),
-        ...(d.emissive   && { emissive:  rgbaToDataURL(new Uint8ClampedArray(d.emissive),   d.width, d.height) }),
+      // Helper — is this map's eye on?
+      const eyeOn = key => {
+        const btn = document.getElementById('eye-' + key);
+        return !btn || btn.classList.contains('active'); // no eye btn = always on (albedo, roughness)
       };
+
+      // Build maps only for what was generated AND eye is on
+      const maps = {};
+      maps.albedo = rgbaToDataURL(new Uint8ClampedArray(d.albedo), d.width, d.height);
+      setPillDone(PILL_MAP['albedo']);
+      if (d.normal && eyeOn('normal')) {
+        maps.normal = rgbaToDataURL(new Uint8ClampedArray(d.normal), d.width, d.height);
+        setPillDone(PILL_MAP['normal']);
+      }
+      if (d.roughness) {
+        maps.roughness = rgbaToDataURL(new Uint8ClampedArray(d.roughness), d.width, d.height);
+        setPillDone(PILL_MAP['roughness']);
+      }
+      if (d.ao && eyeOn('ao')) {
+        maps.ao = rgbaToDataURL(new Uint8ClampedArray(d.ao), d.width, d.height);
+        setPillDone(PILL_MAP['ao']);
+      }
+      if (d.heightMap && eyeOn('height')) {
+        maps.height = rgbaToDataURL(new Uint8ClampedArray(d.heightMap), d.width, d.height);
+        setPillDone(PILL_MAP['height']);
+      }
+      if (d.metalness && eyeOn('metalness')) {
+        maps.metalness = rgbaToDataURL(new Uint8ClampedArray(d.metalness), d.width, d.height);
+        setPillDone(PILL_MAP['metalness']);
+      }
+      if (d.emissive && eyeOn('emissive')) {
+        maps.emissive = rgbaToDataURL(new Uint8ClampedArray(d.emissive), d.width, d.height);
+        setPillDone(PILL_MAP['emissive']);
+      }
       lastMaps = maps;
       // Store params used for this generation
       const p = _currentParams();
@@ -668,9 +789,6 @@ genBtn.addEventListener('click', () => {
 });
 
 // generation slider labels + live preview
-let _previewDebounce = null;
-let _previewWorker = null;
-// Cache worker blob URL — created once, reused for every preview run
 const _previewWorkerURL = 'workers/pbr.js';
 
 function rgbaToObjectURL(rgba, w, h) {
@@ -682,17 +800,30 @@ function rgbaToObjectURL(rgba, w, h) {
   return c.toDataURL('image/png'); // still data URL but canvas is GC'd immediately
 }
 
-function runLivePreview() {
+// Map which slider groups produce which worker output keys
+const _groupKeys = {
+  normal:    ['normal', 'roughness', 'ao'],
+  metalness: ['metalness'],
+  emissive:  ['emissive'],
+  height:    ['height'],
+  all:       ['albedo', 'normal', 'roughness', 'ao', 'height', 'metalness', 'emissive'],
+};
+const _groupDebounce = {};
+const _groupWorker   = {};
+
+function runLivePreview(group = 'all', sliderId = null) {
   if (!loadedImageData) return;
-  clearTimeout(_previewDebounce);
-  _previewDebounce = setTimeout(() => {
-    if (_previewWorker) { _previewWorker.terminate(); _previewWorker = null; }
-    setStatus('Previewing…', '');
+  clearTimeout(_groupDebounce[group]);
+  _groupDebounce[group] = setTimeout(() => {
+    if (_groupWorker[group]) { _groupWorker[group].terminate(); _groupWorker[group] = null; }
+    // spinner is already shown by the slider's input handler
+
     const srcData = stackImageData || loadedImageData;
-    // Slice a copy of the buffer — original ImageData stays intact
     const rgba = new Uint8ClampedArray(srcData.data.buffer.slice(0));
-    _previewWorker = new Worker(_previewWorkerURL);
-    _previewWorker.postMessage({
+    const w = new Worker(_previewWorkerURL);
+    _groupWorker[group] = w;
+
+    w.postMessage({
       rgba,
       width:               srcData.width,
       height:              srcData.height,
@@ -700,73 +831,184 @@ function runLivePreview() {
       roughAlpha:          +document.getElementById('ra').value,
       roughBeta:           +document.getElementById('rb').value,
       aoAlpha:             +document.getElementById('aogen').value,
-      heightScale:         +document.getElementById('hgt-scale').value,
+      heightScale:        +document.getElementById('hgt-scale').value,
+    heightContrast:      +document.getElementById('hgt-contrast').value,
+    heightInvert:        document.getElementById('hgt-invert').checked,
       metalnessThreshold:  +document.getElementById('met-threshold').value,
       metalnessContrast:   +document.getElementById('met-contrast').value,
       emissiveThreshold:   +document.getElementById('emi-threshold').value,
       emissiveIntensity:   +document.getElementById('emi-intensity').value,
-      enableHeight: true, enableMetalness: true, enableEmissive: true,
-      makeSeamlessFlag: false,
-      blendRatio:       0.25,
-      workSize:         512,
-    }, [rgba.buffer]); // transfer — no copy in postMessage
-    _previewWorker.onerror = () => { setStatus('Preview error', 'err'); _previewWorker = null; };
-    _previewWorker.onmessage = e => {
-      if (e.data.type !== 'done') return;
+      enableHeight:    group === 'height'    || (group === 'all' && +document.getElementById('hgt-scale').value > 0),
+      enableMetalness: group === 'metalness' || (group === 'all' && +document.getElementById('met-contrast').value > 1),
+      enableEmissive:  group === 'emissive'  || (group === 'all' && +document.getElementById('emi-intensity').value > 0),
+      makeSeamlessFlag: false, blendRatio: 0.25, workSize: 512,
+    }, [rgba.buffer]);
+
+    w.onerror = () => {
+      if (sliderId) setSpinner(sliderId, false);
+      _groupWorker[group] = null;
+    };
+    w.onmessage = e => {
+      if (e.data.type === 'progress') return; // ignore progress events
+      if (e.data.type !== 'done') { if (sliderId) setSpinner(sliderId, false); return; }
       const d = e.data;
-      const w = d.width, h = d.height;
-      const texLoader = new THREE.TextureLoader();
-      const loadTex = (data, colorSpace) => new Promise(res => {
-        // Create a temporary canvas, extract URL, then let canvas GC
-        const cv = document.createElement('canvas');
-        cv.width = w; cv.height = h;
-        cv.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(data), w, h), 0, 0);
-        const url = cv.toDataURL('image/png');
-        texLoader.load(url, tex => {
+      const dw = d.width, dh = d.height;
+
+      // Fast path: createImageBitmap from raw RGBA — no PNG encode/decode round-trip
+      const makeTex = (rgba, colorSpace) => {
+        const imgData = new ImageData(new Uint8ClampedArray(rgba), dw, dh);
+        return createImageBitmap(imgData).then(bmp => {
+          const tex = new THREE.CanvasTexture(bmp);
           tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
           tex.repeat.set(parseFloat(document.getElementById('tile').value) || 1,
                          parseFloat(document.getElementById('tile').value) || 1);
           if (colorSpace) tex.colorSpace = colorSpace;
-          res(tex);
+          return tex;
         });
-      });
-      Promise.all([
-        loadTex(d.albedo,    THREE.SRGBColorSpace),
-        loadTex(d.normal,    null),
-        loadTex(d.roughness, null),
-        loadTex(d.ao,        null),
-      ]).then(([albTex, nrmTex, rghTex, aoTex]) => {
-        // Dispose old textures before replacing
-        ['map','normalMap','roughnessMap','aoMap'].forEach(k => {
-          if (mat[k]?.isTexture) { mat[k].dispose(); mat[k] = null; }
+      };
+
+      // Build only the entries for the maps this group produces
+      const texEntries = [];
+      if (group === 'all' || group === 'normal') {
+        if (d.albedo)    texEntries.push(['albedo',    d.albedo,    THREE.SRGBColorSpace]);
+        if (d.normal)    texEntries.push(['normal',    d.normal,    null]);
+        if (d.roughness) texEntries.push(['roughness', d.roughness, null]);
+        if (d.ao)        texEntries.push(['ao',        d.ao,        null]);
+      }
+      if ((group === 'all' || group === 'height')    && d.heightMap) texEntries.push(['height',    d.heightMap, null]);
+      if ((group === 'all' || group === 'metalness') && d.metalness) texEntries.push(['metalness', d.metalness, null]);
+      if ((group === 'all' || group === 'emissive')  && d.emissive)  texEntries.push(['emissive',  d.emissive,  null]);
+
+      // Always hide spinner immediately on done, before async texture upload
+      if (sliderId) setSpinner(sliderId, false);
+
+      if (texEntries.length === 0) {
+        w.terminate(); _groupWorker[group] = null; return;
+      }
+
+      Promise.all(texEntries.map(([, data, cs]) => makeTex(data, cs))).then(textures => {
+        texEntries.forEach(([key], i) => {
+          const tex = textures[i];
+          if (loadedMaps[key]?.isTexture) loadedMaps[key].dispose();
+          loadedMaps[key] = tex;
+          const eyeBtn = document.getElementById('eye-' + key);
+          if (!eyeBtn || eyeBtn.classList.contains('active')) {
+            if (propMap[key]) mat[propMap[key]] = tex;
+          }
         });
-        mat.map = albTex;           loadedMaps.albedo    = albTex;
-        mat.normalMap = nrmTex;     loadedMaps.normal    = nrmTex;
-        mat.roughnessMap = rghTex;  loadedMaps.roughness = rghTex;
-        mat.aoMap = aoTex;          loadedMaps.ao        = aoTex;
-        mat.roughness = 1.0;
-        mat.color.set(0xffffff);
-        mat.normalScale?.set(
-          parseFloat(document.getElementById('nsc').value) || 1,
-          parseFloat(document.getElementById('nsc').value) || 1
-        );
-        mat.aoMapIntensity = parseFloat(document.getElementById('aoi').value) || 0.6;
+
+        if (group === 'all' || group === 'normal') {
+          mat.roughness = 1.0;
+          mat.color.set(0xffffff);
+          const nsc = parseFloat(document.getElementById('nsc').value) || 1;
+          mat.normalScale?.set(nsc, nsc);
+          mat.aoMapIntensity = parseFloat(document.getElementById('aoi').value) || 0.6;
+        }
+        if ((group === 'all' || group === 'emissive') && d.emissive) {
+          mat.emissive = new THREE.Color(0xffffff); mat.emissiveIntensity = 1.0;
+        }
+        if ((group === 'all' || group === 'height') && d.heightMap) {
+          const sv = parseFloat(document.getElementById('hgt-scale').value) || 0;
+          mat.displacementScale = sv; mat.displacementBias = -sv / 2;
+        }
+        if ((group === 'all' || group === 'metalness') && d.metalness) mat.metalness = 1.0;
+
         mat.needsUpdate = true;
         requestRender();
-        setStatus('Live preview ✓', 'ok');
-        _previewWorker.terminate();
-        _previewWorker = null;
+        setStatus('✓', 'ok');
+        w.terminate();
+        _groupWorker[group] = null;
       });
     };
   }, 300);
 }
 
-[['ns','vns',0],['ra','vra',2],['rb','vrb',0],['aogen','vaogen',1]].forEach(([id,vid,d]) => {
-  const el=document.getElementById(id), vl=document.getElementById(vid);
-  if(el&&vl) el.addEventListener('input', () => {
-    vl.textContent = parseFloat(el.value).toFixed(d);
-    runLivePreview();
+// ── Per-map eye toggles ───────────────────────────────────────────────
+function toggleMapEye(key, btn) {
+  const isActive = btn.classList.toggle('active');
+  const prop = propMap[key];
+  // Grey out the card when eye is off
+  const card = btn.closest('.card');
+  if (card) card.style.opacity = isActive ? '' : '0.38';
+  if (!prop) return;
+  if (isActive) {
+    if (loadedMaps[key]) {
+      mat[prop] = loadedMaps[key];
+      if (key === 'emissive') { mat.emissive = new THREE.Color(0xffffff); mat.emissiveIntensity = 1.0; }
+      if (key === 'metalness') mat.metalness = 1.0;
+      if (key === 'height') {
+        const sv = parseFloat(document.getElementById('hgt-scale').value) || 0;
+        mat.displacementScale = sv; mat.displacementBias = -sv / 2;
+      }
+      mat.needsUpdate = true; requestRender();
+    }
+  } else {
+    mat[prop] = null;
+    if (key === 'emissive') { mat.emissive = new THREE.Color(0x000000); mat.emissiveIntensity = 0; }
+    if (key === 'metalness') mat.metalness = 0;
+    if (key === 'height') { mat.displacementScale = 0; mat.displacementBias = 0; }
+    mat.needsUpdate = true; requestRender();
+  }
+}
+window.toggleMapEye = toggleMapEye;
+
+// Auto-enable eye when user moves a slider — call this from every slider handler
+function autoEnableEye(eyeId) {
+  const btn = document.getElementById(eyeId);
+  if (btn && !btn.classList.contains('active')) {
+    btn.classList.add('active');
+    const card = btn.closest('.card');
+    if (card) card.style.opacity = '';
+  }
+}
+
+// ── Per-slider spinners ───────────────────────────────────────────────
+// Each slider has its own spin-{id} element
+function setSpinner(sliderId, on) {
+  const el = document.getElementById('spin-' + sliderId);
+  if (el) el.style.display = on ? 'inline-block' : 'none';
+}
+
+// Groups map slider IDs to their worker group
+const _sliderGroup = {
+  'ns': 'normal', 'ra': 'normal', 'rb': 'normal', 'aogen': 'normal',
+  'hgt-scale': 'height',
+  'met-threshold': 'metalness', 'met-contrast': 'metalness',
+  'emi-threshold': 'emissive',  'emi-intensity': 'emissive',
+};
+
+// Maps each slider group to its eye button ID
+const _groupEye = {
+  'normal':    'eye-normal',
+  'height':    'eye-height',
+  'metalness': 'eye-metalness',
+  'emissive':  'eye-emissive',
+};
+
+// ── Slider wiring — per slider spinner, per group worker ──────────────
+function sliderGroup(entries, group) {
+  entries.forEach(([id, vid, dec]) => {
+    const el = document.getElementById(id), vl = document.getElementById(vid);
+    if (!el || !vl) return;
+    el.addEventListener('input', () => {
+      vl.textContent = parseFloat(el.value).toFixed(dec);
+      if (_groupEye[group]) autoEnableEye(_groupEye[group]);
+      setSpinner(id, true);
+      runLivePreview(group, id);
+    });
   });
+}
+
+sliderGroup([['ns','vns',0], ['ra','vra',2], ['rb','vrb',0], ['aogen','vaogen',1]], 'normal');
+sliderGroup([['met-threshold','vmetth',2], ['met-contrast','vmetcon',1]], 'metalness');
+sliderGroup([['emi-threshold','vemith',2], ['emi-intensity','vemiint',1]], 'emissive');
+sliderGroup([['hgt-contrast','vhgtcontrast',1]], 'height');
+
+// Invert toggle — re-runs height worker
+document.getElementById('hgt-invert')?.addEventListener('change', () => {
+  autoEnableEye('eye-height');
+  setSpinner('hgt-scale', true);
+  runLivePreview('height', 'hgt-scale');
 });
 
 // Seamless toggle
@@ -851,10 +1093,17 @@ const mapParams = {
 
 function _currentParams() {
   return {
-    normalStrength: +document.getElementById('ns').value,
-    roughAlpha:     +document.getElementById('ra').value,
-    roughBeta:      +document.getElementById('rb').value,
-    aoAlpha:        +document.getElementById('aogen').value,
+    normalStrength:     +document.getElementById('ns').value,
+    roughAlpha:         +document.getElementById('ra').value,
+    roughBeta:          +document.getElementById('rb').value,
+    aoAlpha:            +document.getElementById('aogen').value,
+    heightScale:        +document.getElementById('hgt-scale').value,
+    heightContrast:     +document.getElementById('hgt-contrast').value,
+    heightInvert:       document.getElementById('hgt-invert').checked,
+    metalnessThreshold: +document.getElementById('met-threshold').value,
+    metalnessContrast:  +document.getElementById('met-contrast').value,
+    emissiveThreshold:  +document.getElementById('emi-threshold').value,
+    emissiveIntensity:  +document.getElementById('emi-intensity').value,
   };
 }
 
@@ -874,6 +1123,8 @@ function regenMap(key) {
     normalStrength: p.normalStrength, roughAlpha: p.roughAlpha,
     roughBeta: p.roughBeta, aoAlpha: p.aoAlpha,
     heightScale:        +document.getElementById('hgt-scale').value,
+    heightContrast:      +document.getElementById('hgt-contrast').value,
+    heightInvert:        document.getElementById('hgt-invert').checked,
     metalnessThreshold: +document.getElementById('met-threshold').value,
     metalnessContrast:  +document.getElementById('met-contrast').value,
     emissiveThreshold:  +document.getElementById('emi-threshold').value,
@@ -1436,8 +1687,7 @@ smModal.addEventListener('click', e => { if (e.target === smModal) smModal.class
 
 // ── Page unload — release all GPU + worker resources ──────────────────
 window.addEventListener('beforeunload', () => {
-  // Terminate workers
-  if (_previewWorker) { _previewWorker.terminate(); }
+  Object.values(_groupWorker).forEach(w => w?.terminate());
   worker.terminate();
   // Revoke blob URLs
   if (thumbObjectURL) URL.revokeObjectURL(thumbObjectURL);

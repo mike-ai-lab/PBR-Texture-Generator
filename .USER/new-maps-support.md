@@ -191,3 +191,4 @@ app.js:262 Uncaught (in promise) TypeError: Failed to fetch dynamically imported
 On it.
 
 ---
+*IDE crashed, kiro agent can use this as a context to continue the workflow seamlessly*

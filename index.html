@@ -129,6 +129,11 @@ select:focus{border-color:#702af8}
 .map-toggle{padding:3px 9px;font-size:9px;font-weight:600;border-radius:5px;border:1px solid #2d2f3d;background:transparent;color:#3a3f5a;cursor:pointer;transition:.15s}
 .map-toggle.active{border-color:#702af8;color:#a78bfa;background:rgba(112,42,248,.1)}
 .map-toggle:hover:not(.active){border-color:#4a4f6a;color:#8892a4}
+.map-eye-tog{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;border:1px solid #2d2f3d;background:transparent;cursor:pointer;color:#3a3f5a;transition:.15s;padding:0;flex-shrink:0}
+.map-eye-tog.active{border-color:#702af8;color:#a78bfa;background:rgba(112,42,248,.1)}
+.map-eye-tog:hover{border-color:#4a4f6a;color:#8892a4}
+@keyframes spin-ring{to{transform:rotate(360deg)}}
+.sl-spinner{display:none;width:10px;height:10px;border:1.5px solid rgba(167,139,250,.2);border-top-color:#a78bfa;border-radius:50%;animation:spin-ring .6s linear infinite;flex-shrink:0}
 #btn-sm-preview{width:100%;padding:7px;margin-bottom:6px;background:transparent;border:1px solid #702af8;color:#a78bfa;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s}
 #btn-sm-preview:hover{background:rgba(112,42,248,.12)}
 /* Card containers for grouped controls */
@@ -248,51 +253,134 @@ select:focus{border-color:#702af8}
   <div class="section">
     <div class="sec-title">Map Generation</div>
     <div class="card">
-      <div class="card-label">Normal &amp; Surface Maps</div>
-      <div class="ctrl">
-        <div class="ctrl-row"><span>Normal Intensity</span><b id="vns">10</b></div>
-        <input type="range" id="ns" min="1" max="30" step="1" value="10">
+      <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Normal &amp; Surface Maps</span>
       </div>
       <div class="ctrl">
-        <div class="ctrl-row"><span>Roughness Scale</span><b id="vra">0.80</b></div>
-        <input type="range" id="ra" min="0.1" max="2.0" step="0.05" value="0.8">
+        <div class="ctrl-row">
+          <span>Normal Intensity</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="sl-spinner" id="spin-ns"></span><b id="vns">0</b>
+            <button class="map-eye-tog active" id="eye-normal" title="Toggle Normal in preview" onclick="toggleMapEye('normal',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+          </div>
+        </div>
+        <input type="range" id="ns" min="0" max="30" step="1" value="0">
       </div>
       <div class="ctrl">
-        <div class="ctrl-row"><span>Roughness Bias</span><b id="vrb">50</b></div>
-        <input type="range" id="rb" min="-100" max="100" step="1" value="50">
+        <div class="ctrl-row">
+          <span>Roughness Scale</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="sl-spinner" id="spin-ra"></span><b id="vra">0.00</b>
+          </div>
+        </div>
+        <input type="range" id="ra" min="0.0" max="2.0" step="0.05" value="0">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-row">
+          <span>Roughness Bias</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="sl-spinner" id="spin-rb"></span><b id="vrb">0</b>
+          </div>
+        </div>
+        <input type="range" id="rb" min="-100" max="100" step="1" value="0">
       </div>
       <div class="ctrl" style="margin-bottom:0">
-        <div class="ctrl-row"><span>AO Strength</span><b id="vaogen">1.5</b></div>
-        <input type="range" id="aogen" min="0.5" max="3.0" step="0.1" value="1.5">
+        <div class="ctrl-row">
+          <span>AO Strength</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="sl-spinner" id="spin-aogen"></span><b id="vaogen">0.0</b>
+            <button class="map-eye-tog active" id="eye-ao" title="Toggle AO in preview" onclick="toggleMapEye('ao',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+          </div>
+        </div>
+        <input type="range" id="aogen" min="0.0" max="3.0" step="0.1" value="0">
       </div>
     </div>
     <div class="card">
-      <div class="card-label">Height Map</div>
+      <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Height Map</span>
+        <button class="map-eye-tog active" id="eye-height" title="Toggle Height in preview" onclick="toggleMapEye('height',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-row">
+          <span>Height Scale</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="sl-spinner" id="spin-hgt-scale"></span><b id="vhgtscale">0.0</b>
+          </div>
+        </div>
+        <input type="range" id="hgt-scale" min="0.0" max="0.5" step="0.01" value="0">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-row">
+          <span>Contrast</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="sl-spinner" id="spin-hgt-contrast"></span><b id="vhgtcontrast">1.8</b>
+          </div>
+        </div>
+        <input type="range" id="hgt-contrast" min="0.5" max="4.0" step="0.1" value="1.8">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-row" style="align-items:center">
+          <span>Invert</span>
+          <label class="pill-switch" style="margin:0">
+            <input type="checkbox" id="hgt-invert">
+            <div class="pill-switch-track"></div>
+          </label>
+        </div>
+      </div>
       <div class="ctrl" style="margin-bottom:0">
-        <div class="ctrl-row"><span>Height Scale</span><b id="vhgtscale">1.0</b></div>
-        <input type="range" id="hgt-scale" min="0.1" max="3.0" step="0.1" value="1.0">
+        <div class="ctrl-row"><span>Subdivisions</span><b id="vsubs">64</b></div>
+        <input type="range" id="geo-subs" min="8" max="256" step="8" value="64">
+      </div>
+      <div style="margin-top:8px;font-size:9px;color:#4a4f6a;line-height:1.6">
+        Increase Subdivisions for more physically detailed displacement. Default 64 is balanced — higher values add quality but cost performance.
       </div>
     </div>
     <div class="card">
-      <div class="card-label">Metalness Map</div>
+      <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Metalness Map</span>
+        <button class="map-eye-tog active" id="eye-metalness" title="Toggle Metalness in preview" onclick="toggleMapEye('metalness',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+      </div>
       <div class="ctrl">
-        <div class="ctrl-row"><span>Threshold</span><b id="vmetth">0.60</b></div>
-        <input type="range" id="met-threshold" min="0.0" max="1.0" step="0.05" value="0.6">
+        <div class="ctrl-row">
+          <span>Threshold</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="sl-spinner" id="spin-met-threshold"></span><b id="vmetth">1.00</b>
+          </div>
+        </div>
+        <input type="range" id="met-threshold" min="0.0" max="1.0" step="0.05" value="1.0">
       </div>
       <div class="ctrl" style="margin-bottom:0">
-        <div class="ctrl-row"><span>Contrast</span><b id="vmetcon">4.0</b></div>
-        <input type="range" id="met-contrast" min="1.0" max="10.0" step="0.5" value="4.0">
+        <div class="ctrl-row">
+          <span>Contrast</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="sl-spinner" id="spin-met-contrast"></span><b id="vmetcon">1.0</b>
+          </div>
+        </div>
+        <input type="range" id="met-contrast" min="1.0" max="10.0" step="0.5" value="1.0">
       </div>
     </div>
     <div class="card">
-      <div class="card-label">Emissive Map</div>
+      <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Emissive Map</span>
+        <button class="map-eye-tog active" id="eye-emissive" title="Toggle Emissive in preview" onclick="toggleMapEye('emissive',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><circle cx="8" cy="8" r="3"/><path d="M1 8 Q4 3 8 3 Q12 3 15 8 Q12 13 8 13 Q4 13 1 8"/></svg></button>
+      </div>
       <div class="ctrl">
-        <div class="ctrl-row"><span>Glow Threshold</span><b id="vemith">0.80</b></div>
-        <input type="range" id="emi-threshold" min="0.3" max="1.0" step="0.05" value="0.8">
+        <div class="ctrl-row">
+          <span>Glow Threshold</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="sl-spinner" id="spin-emi-threshold"></span><b id="vemith">1.00</b>
+          </div>
+        </div>
+        <input type="range" id="emi-threshold" min="0.3" max="1.0" step="0.05" value="1.0">
       </div>
       <div class="ctrl" style="margin-bottom:0">
-        <div class="ctrl-row"><span>Glow Intensity</span><b id="vemiint">2.0</b></div>
-        <input type="range" id="emi-intensity" min="0.5" max="5.0" step="0.5" value="2.0">
+        <div class="ctrl-row">
+          <span>Glow Intensity</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="sl-spinner" id="spin-emi-intensity"></span><b id="vemiint">0.0</b>
+          </div>
+        </div>
+        <input type="range" id="emi-intensity" min="0.0" max="5.0" step="0.5" value="0.0">
       </div>
     </div>
     <div class="card">
@@ -453,15 +541,6 @@ select:focus{border-color:#702af8}
     <!-- Active maps + material -->
     <div class="card">
       <div class="card-label">Material</div>
-      <div style="margin-bottom:10px">
-        <div class="ctrl-row" style="margin-bottom:6px"><span>Active Maps</span><span style="font-size:10px;color:#475569">tap to toggle</span></div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap">
-          <button class="map-toggle active" id="tog-albedo" data-map="albedo">Albedo</button>
-          <button class="map-toggle active" id="tog-normal" data-map="normal">Normal</button>
-          <button class="map-toggle active" id="tog-roughness" data-map="roughness">Roughness</button>
-          <button class="map-toggle active" id="tog-ao" data-map="ao">AO</button>
-        </div>
-      </div>
       <div class="sub-divider"></div>
       <div class="ctrl">
         <div class="ctrl-row"><span>Tiling</span><b id="vtile">2.0x</b></div>

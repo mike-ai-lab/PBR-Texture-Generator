@@ -19,7 +19,7 @@ function wrapPad(ch, w, h, pad) {
 
 function gaussBlur(ch, w, h, sigma) {
   // Separable Gaussian blur on a Float32Array
-  const r = Math.ceil(sigma * 3);
+  const r = Math.max(1, Math.ceil(sigma * 3));
   const kernel = [];
   let sum = 0;
   for (let i = -r; i <= r; i++) { const v = Math.exp(-(i*i)/(2*sigma*sigma)); kernel.push(v); sum += v; }
@@ -69,7 +69,7 @@ function generateNormal(gray, w, h, strength) {
         -pg[(py-1)*pw+(px-1)] - 2*pg[(py-1)*pw+px] - pg[(py-1)*pw+(px+1)]
         +pg[(py+1)*pw+(px-1)] + 2*pg[(py+1)*pw+px] + pg[(py+1)*pw+(px+1)]
       ) / 255;
-      const gz = 1.0 / (strength * 0.1);
+      const gz = 1.0 / (Math.max(0.1, strength) * 0.1);
       const len = Math.sqrt(gx*gx + gy*gy + gz*gz) || 1;
       const i = (y * w + x) * 4;
       out[i]   = ((-gx/len) * 0.5 + 0.5) * 255;
@@ -257,16 +257,21 @@ function makeSeamless(rgba, origW, origH, blendRatio, workSize) {
   return out;
 }
 
-// ── Worker message handler ────────────────────────────────────────────
-// ── New map generators ───────────────────────────────────────────────
+// ── Map generators ───────────────────────────────────────────────────
 
-// Height: grayscale luminance, scaled by user bias
-function generateHeight(gray, w, h, scale) {
+// Enhanced Height Engine: Frequency separation & contrast normalization
+// Height: exact same algorithm as Gemini mockup — luminance + contrast curve + invert
+// No blur, no frequency separation — just a direct pixel-level contrast adjustment
+function generateHeight(gray, w, h, contrast, invert) {
+  const c = contrast ?? 1.2;
   const out = new Uint8ClampedArray(w * h * 4);
   for (let i = 0; i < w * h; i++) {
-    // Blend raw gray with a slightly blurred version for smoother height
-    const v = Math.max(0, Math.min(255, gray[i] * scale));
-    out[i*4] = out[i*4+1] = out[i*4+2] = v;
+    let v = gray[i] / 255;
+    v = (v - 0.5) * c + 0.5;
+    v = Math.max(0, Math.min(1, v));
+    if (invert) v = 1 - v;
+    const b = Math.round(v * 255);
+    out[i*4] = out[i*4+1] = out[i*4+2] = b;
     out[i*4+3] = 255;
   }
   return out;
@@ -303,9 +308,11 @@ function generateEmissive(rgba, w, h, threshold, intensity) {
   return out;
 }
 
+// ── Worker message handler ────────────────────────────────────────────
 self.onmessage = function(e) {
   const { rgba, width, height, normalStrength, roughAlpha, roughBeta, aoAlpha,
-          heightScale, metalnessThreshold, metalnessContrast,
+          heightScale, heightContrast, heightInvert,
+          metalnessThreshold, metalnessContrast,
           emissiveThreshold, emissiveIntensity,
           enableHeight, enableMetalness, enableEmissive,
           makeSeamlessFlag, blendRatio, workSize, seamlessOnlyMode } = e.data;
@@ -347,7 +354,7 @@ self.onmessage = function(e) {
 
   if (enableHeight) {
     self.postMessage({ type: 'progress', step: ++step, total, label: 'Generating height map…' });
-    hgtData = generateHeight(gray, width, height, heightScale ?? 1.0);
+    hgtData = generateHeight(gray, width, height, heightContrast ?? 1.8, heightInvert ?? false);
   }
   if (enableMetalness) {
     self.postMessage({ type: 'progress', step: ++step, total, label: 'Generating metalness map…' });
