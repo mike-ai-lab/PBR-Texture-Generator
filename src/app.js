@@ -34,8 +34,8 @@ const rim  = new THREE.DirectionalLight(0xddeeff, 1.0); rim.position.set(-5, 5, 
 const fill = new THREE.DirectionalLight(0xffffff, 0.6);  fill.position.set(0, -5, 3); scene.add(fill);
 
 // Resize: always sync camera aspect (free), only resize buffer when requested
-let _rw = 0, _rh = 0;
-const _canvasWrap = document.getElementById('canvas-wrap'); // cache DOM ref — never query in rAF
+const _canvasWrap = document.getElementById('canvas-wrap');
+
 function onResize(updateBuffer = true) {
   const w = _canvasWrap.clientWidth, h = _canvasWrap.clientHeight;
   if (!w || !h) return;
@@ -44,12 +44,21 @@ function onResize(updateBuffer = true) {
   if (updateBuffer && (w !== _rw || h !== _rh)) {
     _rw = w; _rh = h;
     renderer.setSize(w, h, true);
+    requestRender();
   }
 }
-onResize();
+
+// Retry until layout resolves — critical on mobile where flex layout
+// isn't calculated at script parse time
+function _initResize() {
+  if (_canvasWrap.clientWidth && _canvasWrap.clientHeight) {
+    onResize(true);
+  } else {
+    requestAnimationFrame(_initResize);
+  }
+}
+_initResize();
 window.addEventListener('resize', onResize);
-// Also run after first paint in case layout wasn't ready at parse time
-requestAnimationFrame(onResize);
 
 // Demand-render loop — only renders when something actually changed
 let _needsRender = true;
@@ -75,11 +84,17 @@ animationLoop();
 requestRender();
 document.addEventListener('visibilitychange', () => { if (!document.hidden) requestRender(); });
 
-// Hide loading overlay
-renderer.render(scene, camera);
+// Hide loading overlay — wait for first real render after layout resolves
 const loadEl = document.getElementById('loading');
-loadEl.style.opacity = '0';
-setTimeout(() => { loadEl.style.display = 'none'; }, 400);
+(function waitForFirstRender() {
+  if (_rw && _rh) {
+    renderer.render(scene, camera);
+    loadEl.style.opacity = '0';
+    setTimeout(() => { loadEl.style.display = 'none'; }, 400);
+  } else {
+    requestAnimationFrame(waitForFirstRender);
+  }
+})();
 
 const hdriBase = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/';
 let currentHdr = null, lightingMode = 'manual';
