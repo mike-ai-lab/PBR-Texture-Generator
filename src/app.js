@@ -35,6 +35,9 @@ const fill = new THREE.DirectionalLight(0xffffff, 0.6);  fill.position.set(0, -5
 
 // Resize: always sync camera aspect (free), only resize buffer when requested
 const _canvasWrap = document.getElementById('canvas-wrap');
+let _rw = 0, _rh = 0;
+let _needsRender = true;
+function requestRender() { _needsRender = true; }
 
 function onResize(updateBuffer = true) {
   const w = _canvasWrap.clientWidth, h = _canvasWrap.clientHeight;
@@ -61,8 +64,6 @@ _initResize();
 window.addEventListener('resize', onResize);
 
 // Demand-render loop — only renders when something actually changed
-let _needsRender = true;
-function requestRender() { _needsRender = true; }
 function animationLoop() {
   requestAnimationFrame(animationLoop);
   // Aspect sync during CSS transitions (cached DOM ref — cheap)
